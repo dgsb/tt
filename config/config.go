@@ -5,6 +5,8 @@ package config
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -14,6 +16,15 @@ type Repository struct {
 }
 
 var ErrConfigNotFound = fmt.Errorf("configuration value not found")
+
+func DefaultConfigurationFile() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "/.config.db"
+	}
+
+	return path.Join(home, ".config.db")
+}
 
 func New(databaseName string) (*Repository, error) {
 	db, err := sql.Open("sqlite3", databaseName)

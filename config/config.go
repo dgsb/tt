@@ -28,6 +28,11 @@ func New(databaseName string) (*Repository, error) {
 	return &Repository{db: db}, nil
 }
 
+func (r *Repository) Close() {
+	r.db.Close()
+	r.db = nil
+}
+
 func (r *Repository) GetConfigs(applicationName string) (map[string]string, error) {
 	rows, err := r.db.Query(`
 		SELECT configuration_name, configuration_value
@@ -82,4 +87,21 @@ func (r *Repository) GetConfig(applicationName, configName string) (string, erro
 	}
 
 	return "", fmt.Errorf("%w: (%s, %s)", ErrConfigNotFound, applicationName, configName)
+}
+
+func (r *Repository) RegisterApplication(applicationName string) error {
+	_, err := r.db.Exec(`INSERT INTO applications (name) VALUES (?)`, applicationName)
+	return err
+}
+
+func (r *Repository) UpsertConfig(applicationName, configName, configValue string) error {
+	_, err := r.db.Exec(`
+		INSERT INTO configurations (application_name, configuration_name, configuration_value)
+		VALUES (?1, ?2, ?3)
+		ON CONFLICT (application_name, configuration_name) DO
+		UPDATE SET configuration_value = ?3`,
+		applicationName,
+		configName,
+		configValue)
+	return err
 }

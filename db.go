@@ -31,6 +31,9 @@ func setupDB(databaseName string) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot open database %s: %w", databaseName, err)
 	}
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("cannot validate database connection %s: %w", databaseName, err)
+	}
 
 	if err := runMigrations(db); err != nil {
 		return nil, fmt.Errorf("cannot run schema migration on database %s: %w", databaseName, err)
@@ -131,7 +134,7 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	row = tx.QueryRow(`
 		SELECT count(1)
 		FROM intervals
-		WHERE start_interval <= ?1 AND stop_interval > ?1`, t.Unix())
+		WHERE start_timestamp <= ?1 AND stop_timestamp > ?1`, t.Unix())
 	if err := row.Scan(&count); err != nil {
 		return fmt.Errorf("cannot count overlapping closed interval: %w", err)
 	}
@@ -219,7 +222,7 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 	}
 
 	// preconditions ok. Close the currently opened interval.
-	_, err = tx.Exec(`UPDATE intervals SET stop_timestamp = ?`, t.Unix())
+	_, err = tx.Exec(`UPDATE intervals SET stop_timestamp = ? WHERE stop_timestamp IS NULL`, t.Unix())
 	if err != nil {
 		return fmt.Errorf("cannot update opened interval: %w", err)
 	}

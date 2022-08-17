@@ -63,6 +63,7 @@ func (tt *TimeTracker) CheckNoOverlap() error {
 	if err != nil {
 		return fmt.Errorf("cannot query the database: %w")
 	}
+	defer rows.Close()
 
 	var (
 		current  *Interval

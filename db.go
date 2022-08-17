@@ -48,6 +48,11 @@ type Interval struct {
 	StopTimestamp  time.Time
 }
 
+type TaggedInterval struct {
+	Interval
+	Tags []string
+}
+
 type TimeTracker struct {
 	db *sql.DB
 }
@@ -232,4 +237,80 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 		return fmt.Errorf("cannot commit transaction: %w", err)
 	}
 	return nil
+}
+
+// List returns a list of interval whose start timestamp is equal
+// or after the timestamp given as parameter.
+func (tt *TimeTracker) List(since time.Time) ([]TaggedInterval, error) {
+	rows, err := tt.db.Query(`
+		SELECT count(1) over(), id, start_timestamp, stop_timestamp
+		FROM intervals
+		WHERE start_timestamp >= ?`,
+		since.Unix())
+	if err != nil {
+		return nil, fmt.Errorf("cannot query for interval: %w", err)
+	}
+	defer rows.Close()
+
+	var intervals []TaggedInterval
+	for rows.Next() {
+		var (
+			count              int64
+			unixStartTimestamp int64
+			unixStopTimestamp  sql.NullInt64
+			interval           TaggedInterval
+		)
+
+		if err := rows.Scan(
+			&count,
+			&interval.Interval.ID,
+			&unixStartTimestamp,
+			&unixStopTimestamp); err != nil {
+			return nil, fmt.Errorf("cannot scan value for current row: %w", err)
+		}
+
+		interval.Interval.StartTimestamp = time.Unix(unixStartTimestamp, 0)
+		if unixStopTimestamp.Valid {
+			interval.Interval.StopTimestamp = time.Unix(unixStopTimestamp.Int64, 0)
+		}
+
+		if intervals == nil {
+			intervals = make([]TaggedInterval, 0, count)
+		}
+
+		intervals = append(intervals, interval)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("cannot iterate over query returned rows: %w", err)
+	}
+
+	for idx := range intervals {
+		rows, err := tt.db.Query(`
+			SELECT count(1) over(), tag
+			FROM interval_tags
+			WHERE interval_id = ?`, intervals[idx].Interval.ID)
+		if err != nil {
+			return nil, fmt.Errorf("cannot retrieve associated tags: %w", err)
+		}
+		defer rows.Close()
+
+		var (
+			count int64
+			tag   string
+		)
+		for rows.Next() {
+			if err := rows.Scan(&count, &tag); err != nil {
+				return nil, fmt.Errorf("cannot scan value for current interval tags row: %w", err)
+			}
+			if intervals[idx].Tags == nil {
+				intervals[idx].Tags = make([]string, 0, count)
+			}
+			intervals[idx].Tags = append(intervals[idx].Tags, tag)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("cannot iterate over associated tags rows: %w", err)
+		}
+	}
+
+	return intervals, nil
 }

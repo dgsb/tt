@@ -50,11 +50,33 @@ func (cmd *StopCmd) Run() error {
 	return nil
 }
 
+type ListCmd struct {
+	CommonConfig `embed:""`
+}
+
+func (cmd *ListCmd) Run() error {
+	db, err := setupDB(cmd.Database)
+	if err != nil {
+		return fmt.Errorf("cannot setup application database: %w", err)
+	}
+
+	tt := &TimeTracker{db: db}
+	taggedInterval, err := tt.List(time.Now().Add(-time.Hour * 24 * 365))
+	if err != nil {
+		return fmt.Errorf("cannot list recorded interval: %w", err)
+	}
+
+	fmt.Println(taggedInterval)
+
+	return nil
+}
+
 func main() {
 
 	var CLI struct {
 		Start StartCmd `cmd:"" help:"start tracking a new time interval"`
 		Stop  StopCmd  `cmd:"" help:"stop tracking the current opened interval"`
+		List  ListCmd  `cmd:"" help:"list intervals"`
 	}
 
 	ctx := kong.Parse(&CLI)

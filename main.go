@@ -14,6 +14,7 @@ type CommonConfig struct {
 
 type StartCmd struct {
 	CommonConfig `embed:""`
+	Tags         []string `arg:"" optional:"" help:"the value to tag the interval with"`
 }
 
 func (cmd *StartCmd) Run() error {
@@ -23,7 +24,7 @@ func (cmd *StartCmd) Run() error {
 	}
 
 	tt := &TimeTracker{db: db}
-	if err := tt.Start(time.Now(), []string{}); err != nil {
+	if err := tt.Start(time.Now(), cmd.Tags); err != nil {
 		return fmt.Errorf("cannot start a new opened interval: %w", err)
 	}
 

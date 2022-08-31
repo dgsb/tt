@@ -39,6 +39,10 @@ func setupDB(databaseName string) (*sql.DB, error) {
 		return nil, fmt.Errorf("cannot run schema migration on database %s: %w", databaseName, err)
 	}
 
+	if _, err := db.Exec(`PRAGMA foreign_keys = ON`); err != nil {
+		return nil, fmt.Errorf("cannot enforce foreign keys consistency mode: %w", err)
+	}
+
 	return db, nil
 }
 

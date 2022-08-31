@@ -1,7 +1,8 @@
 CREATE TABLE intervals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     start_timestamp INTEGER NOT NULL,
-    stop_timestamp INTEGER
+    stop_timestamp INTEGER,
+    deleted_at INTEGER
 );
 
 CREATE TABLE tags (

@@ -64,6 +64,7 @@ func (tt *TimeTracker) CheckNoOverlap() error {
 		SELECT id, start_timestamp, stop_timestamp
 		FROM intervals
 		WHERE stop_timestamp IS NOT NULL
+			AND deleted_at IS NULL
 		ORDER BY start_timestamp`)
 	if err != nil {
 		return fmt.Errorf("cannot query the database: %w")
@@ -128,7 +129,11 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 
 	// Check we don't have an already running opened interval
 	var count int
-	row := tx.QueryRow(`SELECT count(1) FROM intervals WHERE stop_timestamp IS NULL`)
+	row := tx.QueryRow(`
+		SELECT count(1)
+		FROM intervals
+		WHERE stop_timestamp IS NULL
+			AND deleted_at IS NULL`)
 	if err := row.Scan(&count); err != nil {
 		return fmt.Errorf("cannot count opened intervals: %w", err)
 	}
@@ -140,7 +145,8 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	row = tx.QueryRow(`
 		SELECT count(1)
 		FROM intervals
-		WHERE start_timestamp <= ?1 AND stop_timestamp > ?1`, t.Unix())
+		WHERE start_timestamp <= ?1 AND stop_timestamp > ?1
+			AND deleted_at IS NULL`, t.Unix())
 	if err := row.Scan(&count); err != nil {
 		return fmt.Errorf("cannot count overlapping closed interval: %w", err)
 	}
@@ -205,12 +211,13 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 	row := tx.QueryRow(`
 		SELECT start_timestamp, count(1) over()
 		FROM intervals
-		WHERE stop_timestamp IS NULL LIMIT 1`)
+		WHERE stop_timestamp IS NULL AND deleted_at IS NULL
+		LIMIT 1`)
 	if err := row.Scan(&startTimestampUnix, &count); err != nil {
 		return fmt.Errorf("cannot count opened interval: %w", err)
 	}
 	if count > 1 {
-		return fmt.Errorf("mulitple opened interval: %d", count)
+		return fmt.Errorf("multiple opened interval: %d", count)
 	}
 
 	// Check the requested stop timestamp doesn't include other
@@ -219,7 +226,8 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 		SELECT count(1)
 		FROM intervals
 		WHERE start_timestamp > ?
-			AND start_timestamp <= ?`, startTimestampUnix, t.Unix())
+			AND start_timestamp <= ?
+			AND deleted_at IS NULL`, startTimestampUnix, t.Unix())
 	if err := row.Scan(&count); err != nil {
 		fmt.Errorf("cannot count enclosed interval: %w", err)
 	}
@@ -228,7 +236,10 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 	}
 
 	// preconditions ok. Close the currently opened interval.
-	_, err = tx.Exec(`UPDATE intervals SET stop_timestamp = ? WHERE stop_timestamp IS NULL`, t.Unix())
+	_, err = tx.Exec(`
+		UPDATE intervals SET stop_timestamp = ?
+		WHERE stop_timestamp IS NULL
+			AND deleted_at IS NULL`, t.Unix())
 	if err != nil {
 		return fmt.Errorf("cannot update opened interval: %w", err)
 	}
@@ -245,7 +256,7 @@ func (tt *TimeTracker) List(since time.Time) ([]TaggedInterval, error) {
 	rows, err := tt.db.Query(`
 		SELECT count(1) over(), id, start_timestamp, stop_timestamp
 		FROM intervals
-		WHERE start_timestamp >= ?`,
+		WHERE start_timestamp >= ? AND deleted_at IS NULL`,
 		since.Unix())
 	if err != nil {
 		return nil, fmt.Errorf("cannot query for interval: %w", err)
@@ -313,4 +324,12 @@ func (tt *TimeTracker) List(since time.Time) ([]TaggedInterval, error) {
 	}
 
 	return intervals, nil
+}
+
+func (tt *TimeTracker) Delete(id string) error {
+	_, err := tt.db.Exec(`UPDATE intervals SET deleted_at = ? WHERE id = ?`, time.Now().Unix(), id)
+	if err != nil {
+		return fmt.Errorf("cannot delete interval %s: %w", id, err)
+	}
+	return nil
 }

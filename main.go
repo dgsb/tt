@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -9,7 +10,7 @@ import (
 )
 
 type CommonConfig struct {
-	Database string `name:"db" type:"file" default:"/Users/david/.tt.db" help:"the sqlite database to use for application data"`
+	Database string `name:"db" type:"file" default:"${home}/.tt.db" help:"the sqlite database to use for application data"`
 }
 
 type StartCmd struct {
@@ -71,15 +72,42 @@ func (cmd *ListCmd) Run() error {
 	return nil
 }
 
-func main() {
+type DeleteCmd struct {
+	CommonConfig `embed:""`
+	IDs          []string `arg:"" help:"the ids of the intervals to delete"`
+}
 
-	var CLI struct {
-		Start StartCmd `cmd:"" help:"start tracking a new time interval"`
-		Stop  StopCmd  `cmd:"" help:"stop tracking the current opened interval"`
-		List  ListCmd  `cmd:"" help:"list intervals"`
+func (cmd *DeleteCmd) Run() error {
+	db, err := setupDB(cmd.Database)
+	if err != nil {
+		return fmt.Errorf("cannot setup application database: %w", err)
 	}
 
-	ctx := kong.Parse(&CLI)
+	tt := &TimeTracker{db: db}
+	for _, id := range cmd.IDs {
+		if err := tt.Delete(id); err != nil {
+			return fmt.Errorf("cannot delete interval %s: %w", id, err)
+		}
+	}
+
+	return nil
+}
+
+func main() {
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		logrus.WithError(err).Fatal("cannot retrieve user home directory")
+	}
+
+	var CLI struct {
+		Start  StartCmd  `cmd:"" help:"start tracking a new time interval"`
+		Stop   StopCmd   `cmd:"" help:"stop tracking the current opened interval"`
+		List   ListCmd   `cmd:"" help:"list intervals"`
+		Delete DeleteCmd `cmd:"" help:"delete a registered interval"`
+	}
+
+	ctx := kong.Parse(&CLI, kong.Vars{"home": homeDir})
 	if err := ctx.Run(); err != nil {
 		logrus.WithError(err).WithField("command", ctx.Command).Fatal("cannot run command")
 	}

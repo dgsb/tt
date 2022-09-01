@@ -93,6 +93,47 @@ func (cmd *DeleteCmd) Run() error {
 	return nil
 }
 
+type TagCmd struct {
+	CommonConfig `embed:""`
+	ID           string   `args:"" help:"the interval id to tag"`
+	Tags         []string `args:"" help:"values to tag the interval with"`
+}
+
+func (cmd *TagCmd) Run() error {
+	db, err := setupDB(cmd.Database)
+	if err != nil {
+		return fmt.Errorf("cannot setup application database: %w", err)
+	}
+
+	tt := &TimeTracker{db: db}
+
+	if err := tt.Tag(cmd.ID, cmd.Tags); err != nil {
+		return fmt.Errorf("cannot tag interval %s with %s: %w", cmd.ID, cmd.Tags, err)
+	}
+
+	return nil
+}
+
+type UntagCmd struct {
+	CommonConfig `embed:""`
+	ID           string   `args:"" help:"the interval id to untag"`
+	Tags         []string `args:"" help:"the tag to remove from the interval"`
+}
+
+func (cmd *UntagCmd) Run() error {
+	db, err := setupDB(cmd.Database)
+	if err != nil {
+		return fmt.Errorf("cannot setup application database: %w", err)
+	}
+
+	tt := &TimeTracker{db: db}
+
+	if err := tt.Untag(cmd.ID, cmd.Tags); err != nil {
+		return fmt.Errorf("cannot untag %s from %s: %w", cmd.ID, cmd.Tags, err)
+	}
+	return nil
+}
+
 func main() {
 
 	homeDir, err := os.UserHomeDir()
@@ -105,6 +146,8 @@ func main() {
 		Stop   StopCmd   `cmd:"" help:"stop tracking the current opened interval"`
 		List   ListCmd   `cmd:"" help:"list intervals"`
 		Delete DeleteCmd `cmd:"" help:"delete a registered interval"`
+		Tag    TagCmd    `cmd:"" help:"tag an interval with given values"`
+		Untag  UntagCmd  `cmd:"" help:"remove tags from an interval"`
 	}
 
 	ctx := kong.Parse(&CLI, kong.Vars{"home": homeDir})

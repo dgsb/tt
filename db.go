@@ -337,3 +337,55 @@ func (tt *TimeTracker) Delete(id string) error {
 	}
 	return nil
 }
+
+func (tt *TimeTracker) Tag(id string, tags []string) error {
+	tx, err := tt.db.Begin()
+	if err != nil {
+		return fmt.Errorf("cannot start a transaction: %w", err)
+	}
+	defer func() {
+		tx.Rollback()
+	}()
+
+	for _, tag := range tags {
+		if _, err := tx.Exec(`INSERT INTO tags (name) VALUES (?) ON CONFLICT DO NOTHING`, tag); err != nil {
+			return fmt.Errorf("cannot insert new tags %s: %w", tag, err)
+		}
+
+		if _, err := tx.Exec(`
+			INSERT INTO interval_tags (interval_id, tag)
+			VALUES (?, ?)
+			ON CONFLICT DO NOTHING`, id, tag); err != nil {
+			return fmt.Errorf("cannot tag interval %s with %s: %w", id, tag)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("cannot commit the transaction: %w", err)
+	}
+	return nil
+}
+
+func (tt *TimeTracker) Untag(id string, tags []string) error {
+	tx, err := tt.db.Begin()
+	if err != nil {
+		return fmt.Errorf("cannot start a transaction: %w", err)
+	}
+	defer func() {
+		tx.Rollback()
+	}()
+
+	for _, tag := range tags {
+		if _, err := tx.Exec(`
+			DELETE FROM interval_tags
+			WHERE interval_id = ? AND tag = ?
+		`, id, tag); err != nil {
+			return fmt.Errorf("cannot untag interval %s from %s: %w", id, tag, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("cannot commit transaction: %w", err)
+	}
+	return nil
+}

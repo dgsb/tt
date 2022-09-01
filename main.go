@@ -164,13 +164,13 @@ func main() {
 	}
 
 	var CLI struct {
+		Current CurrentCmd `default:"1" cmd:"" help:"return the current opened interval"`
+		Delete  DeleteCmd  `cmd:"" help:"delete a registered interval"`
+		List    ListCmd    `cmd:"" help:"list intervals"`
 		Start   StartCmd   `cmd:"" help:"start tracking a new time interval"`
 		Stop    StopCmd    `cmd:"" help:"stop tracking the current opened interval"`
-		List    ListCmd    `cmd:"" help:"list intervals"`
-		Delete  DeleteCmd  `cmd:"" help:"delete a registered interval"`
 		Tag     TagCmd     `cmd:"" help:"tag an interval with given values"`
 		Untag   UntagCmd   `cmd:"" help:"remove tags from an interval"`
-		Current CurrentCmd `default:"1" cmd:"" help:"return the current opened interval"`
 	}
 
 	ctx := kong.Parse(&CLI, kong.Vars{"home": homeDir})

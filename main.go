@@ -14,12 +14,11 @@ type CommonConfig struct {
 }
 
 type StartCmd struct {
-	CommonConfig `embed:""`
-	Tags         []string `arg:"" optional:"" help:"the value to tag the interval with"`
+	Tags []string `arg:"" optional:"" help:"the value to tag the interval with"`
 }
 
-func (cmd *StartCmd) Run() error {
-	db, err := setupDB(cmd.Database)
+func (cmd *StartCmd) Run(cfg *CommonConfig) error {
+	db, err := setupDB(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
@@ -33,12 +32,11 @@ func (cmd *StartCmd) Run() error {
 }
 
 type StopCmd struct {
-	CommonConfig `embed:""`
 }
 
-func (cmd *StopCmd) Run() error {
+func (cmd *StopCmd) Run(cfg *CommonConfig) error {
 
-	db, err := setupDB(cmd.Database)
+	db, err := setupDB(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
@@ -52,11 +50,10 @@ func (cmd *StopCmd) Run() error {
 }
 
 type ListCmd struct {
-	CommonConfig `embed:""`
 }
 
-func (cmd *ListCmd) Run() error {
-	db, err := setupDB(cmd.Database)
+func (cmd *ListCmd) Run(cfg *CommonConfig) error {
+	db, err := setupDB(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
@@ -73,12 +70,11 @@ func (cmd *ListCmd) Run() error {
 }
 
 type DeleteCmd struct {
-	CommonConfig `embed:""`
-	IDs          []string `arg:"" help:"the ids of the intervals to delete"`
+	IDs []string `arg:"" help:"the ids of the intervals to delete"`
 }
 
-func (cmd *DeleteCmd) Run() error {
-	db, err := setupDB(cmd.Database)
+func (cmd *DeleteCmd) Run(cfg *CommonConfig) error {
+	db, err := setupDB(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
@@ -94,13 +90,12 @@ func (cmd *DeleteCmd) Run() error {
 }
 
 type TagCmd struct {
-	CommonConfig `embed:""`
-	ID           string   `args:"" help:"the interval id to tag"`
-	Tags         []string `args:"" help:"values to tag the interval with"`
+	ID   string   `args:"" help:"the interval id to tag"`
+	Tags []string `args:"" help:"values to tag the interval with"`
 }
 
-func (cmd *TagCmd) Run() error {
-	db, err := setupDB(cmd.Database)
+func (cmd *TagCmd) Run(cfg *CommonConfig) error {
+	db, err := setupDB(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
@@ -115,13 +110,12 @@ func (cmd *TagCmd) Run() error {
 }
 
 type UntagCmd struct {
-	CommonConfig `embed:""`
-	ID           string   `args:"" help:"the interval id to untag"`
-	Tags         []string `args:"" help:"the tag to remove from the interval"`
+	ID   string   `args:"" help:"the interval id to untag"`
+	Tags []string `args:"" help:"the tag to remove from the interval"`
 }
 
-func (cmd *UntagCmd) Run() error {
-	db, err := setupDB(cmd.Database)
+func (cmd *UntagCmd) Run(cfg *CommonConfig) error {
+	db, err := setupDB(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
@@ -135,11 +129,10 @@ func (cmd *UntagCmd) Run() error {
 }
 
 type CurrentCmd struct {
-	CommonConfig `embed:""`
 }
 
-func (cmd *CurrentCmd) Run() error {
-	db, err := setupDB(cmd.Database)
+func (cmd *CurrentCmd) Run(cfg *CommonConfig) error {
+	db, err := setupDB(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
@@ -164,6 +157,8 @@ func main() {
 	}
 
 	var CLI struct {
+		CommonConfig
+
 		Current CurrentCmd `default:"1" cmd:"" help:"return the current opened interval"`
 		Delete  DeleteCmd  `cmd:"" help:"delete a registered interval"`
 		List    ListCmd    `cmd:"" help:"list intervals"`
@@ -174,7 +169,7 @@ func main() {
 	}
 
 	ctx := kong.Parse(&CLI, kong.Vars{"home": homeDir})
-	if err := ctx.Run(); err != nil {
+	if err := ctx.Run(&CLI.CommonConfig); err != nil {
 		logrus.WithError(err).WithField("command", ctx.Command).Fatal("cannot run command")
 	}
 }

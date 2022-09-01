@@ -134,6 +134,28 @@ func (cmd *UntagCmd) Run() error {
 	return nil
 }
 
+type CurrentCmd struct {
+	CommonConfig `embed:""`
+}
+
+func (cmd *CurrentCmd) Run() error {
+	db, err := setupDB(cmd.Database)
+	if err != nil {
+		return fmt.Errorf("cannot setup application database: %w", err)
+	}
+
+	tt := &TimeTracker{db: db}
+
+	interval, err := tt.Current()
+	if err != nil {
+		return fmt.Errorf("cannot retrieve current interval: %w", err)
+	}
+	if interval != nil {
+		fmt.Println(*interval)
+	}
+	return nil
+}
+
 func main() {
 
 	homeDir, err := os.UserHomeDir()
@@ -142,12 +164,13 @@ func main() {
 	}
 
 	var CLI struct {
-		Start  StartCmd  `cmd:"" help:"start tracking a new time interval"`
-		Stop   StopCmd   `cmd:"" help:"stop tracking the current opened interval"`
-		List   ListCmd   `cmd:"" help:"list intervals"`
-		Delete DeleteCmd `cmd:"" help:"delete a registered interval"`
-		Tag    TagCmd    `cmd:"" help:"tag an interval with given values"`
-		Untag  UntagCmd  `cmd:"" help:"remove tags from an interval"`
+		Start   StartCmd   `cmd:"" help:"start tracking a new time interval"`
+		Stop    StopCmd    `cmd:"" help:"stop tracking the current opened interval"`
+		List    ListCmd    `cmd:"" help:"list intervals"`
+		Delete  DeleteCmd  `cmd:"" help:"delete a registered interval"`
+		Tag     TagCmd     `cmd:"" help:"tag an interval with given values"`
+		Untag   UntagCmd   `cmd:"" help:"remove tags from an interval"`
+		Current CurrentCmd `default:"1" cmd:"" help:"return the current opened interval"`
 	}
 
 	ctx := kong.Parse(&CLI, kong.Vars{"home": homeDir})

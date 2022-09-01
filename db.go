@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	_ "embed"
+	"errors"
 	"fmt"
 	"time"
 
@@ -388,4 +389,44 @@ func (tt *TimeTracker) Untag(id string, tags []string) error {
 		return fmt.Errorf("cannot commit transaction: %w", err)
 	}
 	return nil
+}
+
+// Current returned the currently single opened interval if any.
+func (tt *TimeTracker) Current() (*TaggedInterval, error) {
+	row := tt.db.QueryRow(`
+		SELECT id, start_timestamp
+		FROM intervals
+		WHERE stop_timestamp IS NULL
+			AND deleted_at IS NULL`)
+
+	var (
+		unixStartTimestamp int64
+		interval           TaggedInterval
+	)
+	if err := row.Scan(&interval.Interval.ID, &unixStartTimestamp); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("cannot scan current opened interval: %w", err)
+	}
+
+	interval.Interval.StartTimestamp = time.Unix(unixStartTimestamp, 0)
+
+	rows, err := tt.db.Query(`SELECT tag FROM interval_tags WHERE interval_id = ?`, interval.Interval.ID)
+	if err != nil {
+		return nil, fmt.Errorf("cannot fetch tags for interval %s: %w", interval.Interval.ID, err)
+	}
+
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, fmt.Errorf("cannot scan a tag: %w", err)
+		}
+		interval.Tags = append(interval.Tags, tag)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("cannot iterate over tags cursor: %w", err)
+	}
+
+	return &interval, nil
 }

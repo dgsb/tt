@@ -90,8 +90,8 @@ func (cmd *DeleteCmd) Run(cfg *CommonConfig) error {
 }
 
 type TagCmd struct {
-	ID   string   `args:"" help:"the interval id to tag"`
-	Tags []string `args:"" help:"values to tag the interval with"`
+	ID   string   `arg:"" help:"the interval id to tag"`
+	Tags []string `arg:"" help:"values to tag the interval with"`
 }
 
 func (cmd *TagCmd) Run(cfg *CommonConfig) error {
@@ -110,8 +110,8 @@ func (cmd *TagCmd) Run(cfg *CommonConfig) error {
 }
 
 type UntagCmd struct {
-	ID   string   `args:"" help:"the interval id to untag"`
-	Tags []string `args:"" help:"the tag to remove from the interval"`
+	ID   string   `arg:"" help:"the interval id to untag"`
+	Tags []string `arg:"" help:"the tag to remove from the interval"`
 }
 
 func (cmd *UntagCmd) Run(cfg *CommonConfig) error {

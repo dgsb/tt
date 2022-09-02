@@ -78,12 +78,14 @@ func (cmd *ListCmd) Run(cfg *CommonConfig) error {
 	}
 
 	tt := &TimeTracker{db: db}
-	taggedInterval, err := tt.List(time.Now().Add(-time.Hour * 24 * 365))
+	taggedIntervals, err := tt.List(time.Now().Add(-time.Hour * 24 * 365))
 	if err != nil {
 		return fmt.Errorf("cannot list recorded interval: %w", err)
 	}
 
-	fmt.Println(taggedInterval)
+	for _, ti := range taggedIntervals {
+		fmt.Println(ti)
+	}
 
 	return nil
 }

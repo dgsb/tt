@@ -32,6 +32,8 @@ func (cmd *StartCmd) Run(cfg *CommonConfig) error {
 }
 
 type StopCmd struct {
+	At  time.Time     `help:"specify the stop timestamp in RFC3339 format" group:"time" xor:"time"`
+	Ago time.Duration `help:"specify the stop timestamp as a duration in the past" group:"time" xor:"time"`
 }
 
 func (cmd *StopCmd) Run(cfg *CommonConfig) error {
@@ -42,7 +44,15 @@ func (cmd *StopCmd) Run(cfg *CommonConfig) error {
 	}
 
 	tt := &TimeTracker{db: db}
-	if err := tt.Stop(time.Now()); err != nil {
+
+	stopTime := time.Now()
+	if !cmd.At.IsZero() {
+		stopTime = cmd.At
+	} else if cmd.Ago != 0 {
+		stopTime = time.Now().Add(-cmd.Ago)
+	}
+
+	if err := tt.Stop(stopTime); err != nil {
 		return fmt.Errorf("cannot stop a currently opened interval: %w", err)
 	}
 

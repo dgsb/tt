@@ -431,3 +431,92 @@ func (tt *TimeTracker) Current() (*TaggedInterval, error) {
 
 	return &interval, nil
 }
+
+// Continue opens a new interval with the same tags as the last closed one.
+// It will return an error if there is already an opened interval.
+func (tt *TimeTracker) Continue(t time.Time) error {
+	tx, err := tt.db.Begin()
+	if err != nil {
+		return fmt.Errorf("cannot start transaction: %w")
+	}
+	defer func() {
+		tx.Rollback()
+	}()
+
+	var count int64
+	row := tx.QueryRow(`
+		SELECT count(1)
+		FROM intervals
+		WHERE stop_timestamp IS NULL
+			AND deleted_at IS NULL`)
+	if err := row.Scan(&count); err != nil {
+		return fmt.Errorf("cannot cound opened intervals: %w", err)
+	}
+
+	if count >= 1 {
+		return fmt.Errorf("too many opened intervals")
+	}
+
+	row = tx.QueryRow(`
+		SELECT count(1)
+		FROM intervals
+		WHERE deleted_at IS NULL
+			AND start_timestamp <= ?1
+			AND stop_timestamp > ?1`, t.Unix())
+	if err := row.Scan(&count); err != nil {
+		return fmt.Errorf("cannot count overlapping intervals: %w", err)
+	}
+
+	if count >= 1 {
+		return fmt.Errorf("requested start intervals belongs to a closed interval")
+	}
+
+	rows, err := tx.Query(`
+		WITH last_id AS (
+			SELECT id
+			FROM intervals
+			WHERE deleted_at IS NULL
+			ORDER BY start_timestamp DESC
+			LIMIT 1
+		)
+		SELECT interval_tags.tag
+		FROM interval_tags
+			INNER JOIN last_id ON interval_tags.interval_id = last_id.id`)
+	if err != nil {
+		return fmt.Errorf("cannot retrieve tags associated with last closed interval: %w", err)
+	}
+
+	var tags []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return fmt.Errorf("cannot scan tag: %w", err)
+		}
+		tags = append(tags, t)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("cannot iterate over tags cursor: %w", err)
+	}
+
+	var newID int64
+	row = tx.QueryRow(`
+		INSERT INTO intervals (start_timestamp, stop_timestamp)
+		VALUES (?, NULL)
+		RETURNING (id)`, t.Unix())
+	if err := row.Scan(&newID); err != nil {
+		return fmt.Errorf("cannot insert new interval: %w", err)
+	}
+
+	for _, t := range tags {
+		_, err := tx.Exec(`INSERT INTO interval_tags (interval_id, tag) VALUES (?, ?)`, newID, t)
+		if err != nil {
+			return fmt.Errorf("cannot tag interval %d with value %s: %w", newID, t, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("cannot commit the transaction: %w", err)
+	}
+
+	return nil
+}

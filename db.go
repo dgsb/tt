@@ -261,7 +261,8 @@ func (tt *TimeTracker) List(since time.Time) ([]TaggedInterval, error) {
 	rows, err := tt.db.Query(`
 		SELECT count(1) over(), id, start_timestamp, stop_timestamp
 		FROM intervals
-		WHERE start_timestamp >= ? AND deleted_at IS NULL`,
+		WHERE start_timestamp >= ? AND deleted_at IS NULL
+		ORDER BY start_timestamp`,
 		since.Unix())
 	if err != nil {
 		return nil, fmt.Errorf("cannot query for interval: %w", err)

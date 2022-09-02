@@ -14,7 +14,9 @@ type CommonConfig struct {
 }
 
 type StartCmd struct {
-	Tags []string `arg:"" optional:"" help:"the value to tag the interval with"`
+	At   time.Time     `help:"specify the stop timestamp in RFC3339 format" group:"time" xor:"time"`
+	Ago  time.Duration `help:"specify the stop timestamp as a duration in the past" group:"time" xor:"time"`
+	Tags []string      `arg:"" optional:"" help:"the value to tag the interval with"`
 }
 
 func (cmd *StartCmd) Run(cfg *CommonConfig) error {
@@ -23,8 +25,15 @@ func (cmd *StartCmd) Run(cfg *CommonConfig) error {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
 
+	startTime := time.Now()
+	if !cmd.At.IsZero() {
+		startTime = cmd.At
+	} else if cmd.Ago != 0 {
+		startTime = time.Now().Add(-cmd.Ago)
+	}
+
 	tt := &TimeTracker{db: db}
-	if err := tt.Start(time.Now(), cmd.Tags); err != nil {
+	if err := tt.Start(startTime, cmd.Tags); err != nil {
 		return fmt.Errorf("cannot start a new opened interval: %w", err)
 	}
 

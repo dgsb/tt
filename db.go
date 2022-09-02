@@ -236,7 +236,7 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 	if err := row.Scan(&count); err != nil {
 		fmt.Errorf("cannot count enclosed interval: %w", err)
 	}
-	if count > 1 {
+	if count >= 1 {
 		return fmt.Errorf("invalid stop time")
 	}
 

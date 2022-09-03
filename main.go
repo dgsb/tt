@@ -91,7 +91,7 @@ func (cmd *ListCmd) Run(cfg *CommonConfig) error {
 }
 
 type DeleteCmd struct {
-	IDs []string `arg:"" help:"the ids of the intervals to delete"`
+	IDs []string `arg:"" name:"ids" help:"the ids of the intervals to delete"`
 }
 
 func (cmd *DeleteCmd) Run(cfg *CommonConfig) error {

@@ -194,6 +194,31 @@ func (cmd *ContinueCmd) Run(cfg *CommonConfig) error {
 	return nil
 }
 
+type VacuumCmd struct {
+	Since  time.Duration `required:"" help:"specify the duration to delete data before" group:"time" xor:"time"`
+	Before time.Time     `required:"" help:"specify the timestamp to delete data before" group:"time" xor:"time"`
+}
+
+func (cmd *VacuumCmd) Run(cfg *CommonConfig) error {
+	db, err := setupDB(cfg.Database)
+	if err != nil {
+		return fmt.Errorf("cannot setup application database: %w", err)
+	}
+
+	tt := &TimeTracker{db: db}
+
+	checkpoint := cmd.Before
+	if checkpoint.IsZero() {
+		checkpoint = time.Now().Add(-cmd.Since)
+	}
+
+	if err := tt.Vacuum(checkpoint); err != nil {
+		return fmt.Errorf("cannot vacuum the database: %w", err)
+	}
+
+	return nil
+}
+
 func main() {
 
 	homeDir, err := os.UserHomeDir()
@@ -212,6 +237,7 @@ func main() {
 		Stop     StopCmd     `cmd:"" help:"stop tracking the current opened interval"`
 		Tag      TagCmd      `cmd:"" help:"tag an interval with given values"`
 		Untag    UntagCmd    `cmd:"" help:"remove tags from an interval"`
+		Vacuum   VacuumCmd   `cmd:"" help:"hard delete old soft deleted data"`
 	}
 
 	ctx := kong.Parse(&CLI, kong.Vars{"home": homeDir})

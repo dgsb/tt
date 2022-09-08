@@ -44,6 +44,11 @@ func setupDB(databaseName string) (*sql.DB, error) {
 		return nil, fmt.Errorf("cannot enforce foreign keys consistency mode: %w", err)
 	}
 
+	if _, err := db.Exec(`PRAGMA defer_foreign_keys = ON`); err != nil {
+		return nil, fmt.Errorf(
+			"cannot defer foreign keys consistency check at end of transaction time: %w", err)
+	}
+
 	return db, nil
 }
 
@@ -516,6 +521,58 @@ func (tt *TimeTracker) Continue(t time.Time) error {
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("cannot commit the transaction: %w", err)
+	}
+
+	return nil
+}
+
+// Vacuum hard deletes all data which has been soft deleted before the timestamp.
+// It will also remove unused tags. At the end of the clean process, it will
+// perform a database vacuum.
+func (tt *TimeTracker) Vacuum(before time.Time) error {
+	tx, err := tt.db.Begin()
+	if err != nil {
+		return fmt.Errorf("cannot start transaction: %w", err)
+	}
+	defer func() {
+		tx.Rollback()
+	}()
+
+	if _, err := tx.Exec(`
+		DELETE FROM intervals
+		WHERE deleted_at IS NOT NULL
+			AND deleted_at < ?`, before.Unix()); err != nil {
+		return fmt.Errorf("cannot delete lines from intervals table: %w", err)
+	}
+
+	if _, err := tx.Exec(`
+		WITH deleted_ids AS (
+			SELECT DISTINCT interval_id
+			FROM interval_tags LEFT JOIN intervals ON interval_tags.interval_id = intervals.id
+			WHERE intervals.id IS NULL
+		)
+		DELETE FROM interval_tags
+		WHERE interval_id IN (SELECT interval_id FROM deleted_ids)`); err != nil {
+		return fmt.Errorf("cannot delete lines from interval_tags table: %w")
+	}
+
+	if _, err := tx.Exec(`
+		WITH unreferenced_tags AS (
+			SELECT name
+			FROM tags LEFT JOIN interval_tags ON tags.name = interval_tags.tag
+			WHERE interval_tags.tag IS NULL
+		)
+		DELETE FROM tags
+		WHERE name IN (SELECT name FROM unreferenced_tags)`); err != nil {
+		return fmt.Errorf("cannot delete lines from tags table: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("cannot commit transaction: %w", err)
+	}
+
+	if _, err := tt.db.Exec(`VACUUM`); err != nil {
+		return fmt.Errorf("cannot hard vacuum the database file: %w", err)
 	}
 
 	return nil

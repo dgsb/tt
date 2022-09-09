@@ -77,7 +77,7 @@ func (cmd *StopCmd) Run(cfg *CommonConfig) error {
 
 type ListCmd struct {
 	At     time.Time `help:"another starting point for the required time period instead of now"`
-	Period string    `arg:"" help:"a logical description of the time period to look at" default:":day" enum:":week,:day,:month"`
+	Period string    `arg:"" help:"a logical description of the time period to look at" default:":day" enum:":week,:day,:month,:year"`
 }
 
 func (cmd *ListCmd) Run(cfg *CommonConfig) error {
@@ -105,11 +105,14 @@ func (cmd *ListCmd) Run(cfg *CommonConfig) error {
 		}
 		startTime = time.Date(year, month, day-int(weekday-time.Monday), 0, 0, 0, 0, time.Local)
 		stopTime = time.Date(year, month, day+1+int(time.Saturday+1-weekday), 0, 0, 0, 0, time.Local)
-		fmt.Println(startTime, stopTime)
 	case ":month":
 		year, month, _ := startTime.Date()
 		startTime = time.Date(year, month, 1, 0, 0, 0, 0, time.Local)
 		stopTime = time.Date(year, month+1, 1, 0, 0, 0, 0, time.Local)
+	case ":year":
+		year, _, _ := startTime.Date()
+		startTime = time.Date(year, time.January, 1, 0, 0, 0, 0, time.Local)
+		stopTime = time.Date(year+1, time.January, 1, 0, 0, 0, 0, time.Local)
 	default:
 		return fmt.Errorf("this period is not yet implemented: %s", cmd.Period)
 	}

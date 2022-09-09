@@ -28,16 +28,16 @@ func (cmd *StartCmd) Run(cfg *CommonConfig) error {
 	}
 	tt := &TimeTracker{db: db}
 
-	// Stop the current interval before opening a new one
-	if err := tt.Stop(time.Now()); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("cannot stop currently opened interval: %w", err)
-	}
-
 	startTime := time.Now()
 	if !cmd.At.IsZero() {
 		startTime = cmd.At
 	} else if cmd.Ago != 0 {
 		startTime = time.Now().Add(-cmd.Ago)
+	}
+
+	// Stop the current interval before opening a new one
+	if err := tt.Stop(startTime); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("cannot stop currently opened interval: %w", err)
 	}
 
 	if err := tt.Start(startTime, cmd.Tags); err != nil {

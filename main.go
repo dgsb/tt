@@ -106,6 +106,10 @@ func (cmd *ListCmd) Run(cfg *CommonConfig) error {
 		startTime = time.Date(year, month, day-int(weekday-time.Monday), 0, 0, 0, 0, time.Local)
 		stopTime = time.Date(year, month, day+1+int(time.Saturday+1-weekday), 0, 0, 0, 0, time.Local)
 		fmt.Println(startTime, stopTime)
+	case ":month":
+		year, month, _ := startTime.Date()
+		startTime = time.Date(year, month, 1, 0, 0, 0, 0, time.Local)
+		stopTime = time.Date(year, month+1, 1, 0, 0, 0, 0, time.Local)
 	default:
 		return fmt.Errorf("this period is not yet implemented: %s", cmd.Period)
 	}

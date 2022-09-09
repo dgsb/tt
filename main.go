@@ -76,6 +76,8 @@ func (cmd *StopCmd) Run(cfg *CommonConfig) error {
 }
 
 type ListCmd struct {
+	At     time.Time `help:"another starting point for the required time period instead of now"`
+	Period string    `arg:"" help:"a logical description of the time period to look at" default:":day" enum:":week,:day,:month"`
 }
 
 func (cmd *ListCmd) Run(cfg *CommonConfig) error {
@@ -84,8 +86,23 @@ func (cmd *ListCmd) Run(cfg *CommonConfig) error {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
 
+	startTime := cmd.At
+	if startTime.IsZero() {
+		startTime = time.Now()
+	}
+
+	var stopTime time.Time
+	switch cmd.Period {
+	case ":day":
+		year, month, day := startTime.Date()
+		startTime = time.Date(year, month, day, 0, 0, 0, 0, time.Local)
+		stopTime = time.Date(year, month, day+1, 0, 0, 0, 0, time.Local)
+	default:
+		return fmt.Errorf("this period is not yet implemented: %s", cmd.Period)
+	}
+
 	tt := &TimeTracker{db: db}
-	taggedIntervals, err := tt.List(time.Now().Add(-time.Hour * 24 * 365))
+	taggedIntervals, err := tt.List(startTime, stopTime)
 	if err != nil {
 		return fmt.Errorf("cannot list recorded interval: %w", err)
 	}

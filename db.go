@@ -262,13 +262,15 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 
 // List returns a list of interval whose start timestamp is equal
 // or after the timestamp given as parameter.
-func (tt *TimeTracker) List(since time.Time) ([]TaggedInterval, error) {
+func (tt *TimeTracker) List(since, until time.Time) ([]TaggedInterval, error) {
 	rows, err := tt.db.Query(`
 		SELECT count(1) over(), id, start_timestamp, stop_timestamp
 		FROM intervals
-		WHERE start_timestamp >= ? AND deleted_at IS NULL
+		WHERE start_timestamp >= ?
+			AND start_timestamp < ?
+			AND deleted_at IS NULL
 		ORDER BY start_timestamp`,
-		since.Unix())
+		since.Unix(), until.Unix())
 	if err != nil {
 		return nil, fmt.Errorf("cannot query for interval: %w", err)
 	}

@@ -34,10 +34,18 @@ func FlatReport(tas []TaggedInterval, out io.Writer) error {
 		tab.Write([]byte("\t"))
 		tab.Write([]byte(ta.Interval.StopTimestamp.Format("15:04:05")))
 		tab.Write([]byte("\t"))
+
+		if ta.Interval.StopTimestamp.IsZero() {
+			ta.Interval.StopTimestamp = time.Now().Truncate(time.Second)
+		}
 		tab.Write([]byte(ta.Interval.StopTimestamp.Sub(ta.Interval.StartTimestamp).String()))
 		tab.Write([]byte("\t"))
+
 		tab.Write([]byte(strings.Join(ta.Tags, ",")))
+		tab.Write([]byte("\t"))
+
 		tab.Write([]byte("\n"))
+
 		prevStartTime = ta.Interval.StartTimestamp
 	}
 	tab.Flush()

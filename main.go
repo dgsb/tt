@@ -201,7 +201,7 @@ func (cmd *CurrentCmd) Run(cfg *CommonConfig) error {
 		return fmt.Errorf("cannot retrieve current interval: %w", err)
 	}
 	if interval != nil {
-		fmt.Println(*interval)
+		return FlatReport([]TaggedInterval{*interval}, os.Stdout)
 	}
 	return nil
 }

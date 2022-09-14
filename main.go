@@ -123,11 +123,7 @@ func (cmd *ListCmd) Run(cfg *CommonConfig) error {
 		return fmt.Errorf("cannot list recorded interval: %w", err)
 	}
 
-	for _, ti := range taggedIntervals {
-		fmt.Println(ti)
-	}
-
-	return nil
+	return FlatReport(taggedIntervals, os.Stdout)
 }
 
 type DeleteCmd struct {

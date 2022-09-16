@@ -9,6 +9,8 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/sirupsen/logrus"
+
+	"github.com/dgsb/tt/internal/db"
 )
 
 type CommonConfig struct {
@@ -22,11 +24,10 @@ type StartCmd struct {
 }
 
 func (cmd *StartCmd) Run(cfg *CommonConfig) error {
-	db, err := setupDB(cfg.Database)
+	tt, err := db.New(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
-	tt := &TimeTracker{db: db}
 
 	startTime := time.Now()
 	if !cmd.At.IsZero() {
@@ -54,12 +55,10 @@ type StopCmd struct {
 
 func (cmd *StopCmd) Run(cfg *CommonConfig) error {
 
-	db, err := setupDB(cfg.Database)
+	tt, err := db.New(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
-
-	tt := &TimeTracker{db: db}
 
 	stopTime := time.Now()
 	if !cmd.At.IsZero() {
@@ -81,7 +80,7 @@ type ListCmd struct {
 }
 
 func (cmd *ListCmd) Run(cfg *CommonConfig) error {
-	db, err := setupDB(cfg.Database)
+	tt, err := db.New(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
@@ -117,7 +116,6 @@ func (cmd *ListCmd) Run(cfg *CommonConfig) error {
 		return fmt.Errorf("this period is not yet implemented: %s", cmd.Period)
 	}
 
-	tt := &TimeTracker{db: db}
 	taggedIntervals, err := tt.List(startTime, stopTime)
 	if err != nil {
 		return fmt.Errorf("cannot list recorded interval: %w", err)
@@ -131,12 +129,11 @@ type DeleteCmd struct {
 }
 
 func (cmd *DeleteCmd) Run(cfg *CommonConfig) error {
-	db, err := setupDB(cfg.Database)
+	tt, err := db.New(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
 
-	tt := &TimeTracker{db: db}
 	for _, id := range cmd.IDs {
 		if err := tt.Delete(id); err != nil {
 			return fmt.Errorf("cannot delete interval %s: %w", id, err)
@@ -152,12 +149,10 @@ type TagCmd struct {
 }
 
 func (cmd *TagCmd) Run(cfg *CommonConfig) error {
-	db, err := setupDB(cfg.Database)
+	tt, err := db.New(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
-
-	tt := &TimeTracker{db: db}
 
 	if err := tt.Tag(cmd.ID, cmd.Tags); err != nil {
 		return fmt.Errorf("cannot tag interval %s with %s: %w", cmd.ID, cmd.Tags, err)
@@ -172,12 +167,10 @@ type UntagCmd struct {
 }
 
 func (cmd *UntagCmd) Run(cfg *CommonConfig) error {
-	db, err := setupDB(cfg.Database)
+	tt, err := db.New(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
-
-	tt := &TimeTracker{db: db}
 
 	if err := tt.Untag(cmd.ID, cmd.Tags); err != nil {
 		return fmt.Errorf("cannot untag %s from %s: %w", cmd.ID, cmd.Tags, err)
@@ -189,19 +182,17 @@ type CurrentCmd struct {
 }
 
 func (cmd *CurrentCmd) Run(cfg *CommonConfig) error {
-	db, err := setupDB(cfg.Database)
+	tt, err := db.New(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
-
-	tt := &TimeTracker{db: db}
 
 	interval, err := tt.Current()
 	if err != nil {
 		return fmt.Errorf("cannot retrieve current interval: %w", err)
 	}
 	if interval != nil {
-		return FlatReport([]TaggedInterval{*interval}, os.Stdout)
+		return FlatReport([]db.TaggedInterval{*interval}, os.Stdout)
 	}
 	return nil
 }
@@ -211,12 +202,10 @@ type ContinueCmd struct {
 }
 
 func (cmd *ContinueCmd) Run(cfg *CommonConfig) error {
-	db, err := setupDB(cfg.Database)
+	tt, err := db.New(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
-
-	tt := &TimeTracker{db: db}
 
 	if err := tt.Continue(time.Now(), cmd.ID); err != nil {
 		return fmt.Errorf("cannot continue a previously closed interval: %w", err)
@@ -231,12 +220,10 @@ type VacuumCmd struct {
 }
 
 func (cmd *VacuumCmd) Run(cfg *CommonConfig) error {
-	db, err := setupDB(cfg.Database)
+	tt, err := db.New(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("cannot setup application database: %w", err)
 	}
-
-	tt := &TimeTracker{db: db}
 
 	checkpoint := cmd.Before
 	if checkpoint.IsZero() {

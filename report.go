@@ -7,6 +7,8 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"github.com/dgsb/tt/internal/db"
 )
 
 func sameDate(t1, t2 time.Time) bool {
@@ -15,7 +17,7 @@ func sameDate(t1, t2 time.Time) bool {
 	return year1 == year2 && month1 == month2 && day1 == day2
 }
 
-func FlatReport(tas []TaggedInterval, out io.Writer) error {
+func FlatReport(tas []db.TaggedInterval, out io.Writer) error {
 	if !sort.SliceIsSorted(tas, func(i, j int) bool {
 		return tas[i].Interval.StartTimestamp.Unix() < tas[j].Interval.StartTimestamp.Unix()
 	}) {

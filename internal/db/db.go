@@ -1,4 +1,4 @@
-package main
+package db
 
 import (
 	"database/sql"
@@ -11,7 +11,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-//go:embed internal/migrations/01_base.sql
+//go:embed migrations/01_base.sql
 var baseMigration string
 
 func runMigrations(db *sql.DB) error {
@@ -65,6 +65,15 @@ type TaggedInterval struct {
 
 type TimeTracker struct {
 	db *sql.DB
+}
+
+func New(databaseName string) (*TimeTracker, error) {
+	db, err := setupDB(databaseName)
+	if err != nil {
+		return nil, fmt.Errorf("cannot setup time tracker database: %w", err)
+	}
+
+	return &TimeTracker{db: db}, nil
 }
 
 // CheckNoOverlap browses the full interval table to check that no registered

@@ -76,6 +76,10 @@ func New(databaseName string) (*TimeTracker, error) {
 	return &TimeTracker{db: db}, nil
 }
 
+func (tt *TimeTracker) Close() error {
+	return tt.db.Close()
+}
+
 // CheckNoOverlap browses the full interval table to check that no registered
 // and closed interval overlaps with another one. Each interval validity is individually checked.
 func (tt *TimeTracker) CheckNoOverlap() error {

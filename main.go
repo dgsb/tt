@@ -23,12 +23,7 @@ type StartCmd struct {
 	Tags []string      `arg:"" optional:"" help:"the value to tag the interval with"`
 }
 
-func (cmd *StartCmd) Run(cfg *CommonConfig) error {
-	tt, err := db.New(cfg.Database)
-	if err != nil {
-		return fmt.Errorf("cannot setup application database: %w", err)
-	}
-
+func (cmd *StartCmd) Run(tt *db.TimeTracker) error {
 	startTime := time.Now()
 	if !cmd.At.IsZero() {
 		startTime = cmd.At
@@ -53,13 +48,7 @@ type StopCmd struct {
 	Ago time.Duration `help:"specify the stop timestamp as a duration in the past" group:"time" xor:"time"`
 }
 
-func (cmd *StopCmd) Run(cfg *CommonConfig) error {
-
-	tt, err := db.New(cfg.Database)
-	if err != nil {
-		return fmt.Errorf("cannot setup application database: %w", err)
-	}
-
+func (cmd *StopCmd) Run(tt *db.TimeTracker) error {
 	stopTime := time.Now()
 	if !cmd.At.IsZero() {
 		stopTime = cmd.At
@@ -79,12 +68,7 @@ type ListCmd struct {
 	Period string    `arg:"" help:"a logical description of the time period to look at" default:":day" enum:":week,:day,:month,:year"`
 }
 
-func (cmd *ListCmd) Run(cfg *CommonConfig) error {
-	tt, err := db.New(cfg.Database)
-	if err != nil {
-		return fmt.Errorf("cannot setup application database: %w", err)
-	}
-
+func (cmd *ListCmd) Run(tt *db.TimeTracker) error {
 	startTime := cmd.At
 	if startTime.IsZero() {
 		startTime = time.Now()
@@ -128,12 +112,7 @@ type DeleteCmd struct {
 	IDs []string `arg:"" name:"ids" help:"the ids of the intervals to delete"`
 }
 
-func (cmd *DeleteCmd) Run(cfg *CommonConfig) error {
-	tt, err := db.New(cfg.Database)
-	if err != nil {
-		return fmt.Errorf("cannot setup application database: %w", err)
-	}
-
+func (cmd *DeleteCmd) Run(tt *db.TimeTracker) error {
 	for _, id := range cmd.IDs {
 		if err := tt.Delete(id); err != nil {
 			return fmt.Errorf("cannot delete interval %s: %w", id, err)
@@ -148,12 +127,7 @@ type TagCmd struct {
 	Tags []string `arg:"" help:"values to tag the interval with"`
 }
 
-func (cmd *TagCmd) Run(cfg *CommonConfig) error {
-	tt, err := db.New(cfg.Database)
-	if err != nil {
-		return fmt.Errorf("cannot setup application database: %w", err)
-	}
-
+func (cmd *TagCmd) Run(tt *db.TimeTracker) error {
 	if err := tt.Tag(cmd.ID, cmd.Tags); err != nil {
 		return fmt.Errorf("cannot tag interval %s with %s: %w", cmd.ID, cmd.Tags, err)
 	}
@@ -166,12 +140,7 @@ type UntagCmd struct {
 	Tags []string `arg:"" help:"the tag to remove from the interval"`
 }
 
-func (cmd *UntagCmd) Run(cfg *CommonConfig) error {
-	tt, err := db.New(cfg.Database)
-	if err != nil {
-		return fmt.Errorf("cannot setup application database: %w", err)
-	}
-
+func (cmd *UntagCmd) Run(tt *db.TimeTracker) error {
 	if err := tt.Untag(cmd.ID, cmd.Tags); err != nil {
 		return fmt.Errorf("cannot untag %s from %s: %w", cmd.ID, cmd.Tags, err)
 	}
@@ -181,12 +150,7 @@ func (cmd *UntagCmd) Run(cfg *CommonConfig) error {
 type CurrentCmd struct {
 }
 
-func (cmd *CurrentCmd) Run(cfg *CommonConfig) error {
-	tt, err := db.New(cfg.Database)
-	if err != nil {
-		return fmt.Errorf("cannot setup application database: %w", err)
-	}
-
+func (cmd *CurrentCmd) Run(tt *db.TimeTracker) error {
 	interval, err := tt.Current()
 	if err != nil {
 		return fmt.Errorf("cannot retrieve current interval: %w", err)
@@ -201,12 +165,7 @@ type ContinueCmd struct {
 	ID string `long:"id" help:"specify an interval ID to continue"`
 }
 
-func (cmd *ContinueCmd) Run(cfg *CommonConfig) error {
-	tt, err := db.New(cfg.Database)
-	if err != nil {
-		return fmt.Errorf("cannot setup application database: %w", err)
-	}
-
+func (cmd *ContinueCmd) Run(tt *db.TimeTracker) error {
 	if err := tt.Continue(time.Now(), cmd.ID); err != nil {
 		return fmt.Errorf("cannot continue a previously closed interval: %w", err)
 	}
@@ -219,12 +178,7 @@ type VacuumCmd struct {
 	Before time.Time     `required:"" help:"specify the timestamp to delete data before" group:"time" xor:"time"`
 }
 
-func (cmd *VacuumCmd) Run(cfg *CommonConfig) error {
-	tt, err := db.New(cfg.Database)
-	if err != nil {
-		return fmt.Errorf("cannot setup application database: %w", err)
-	}
-
+func (cmd *VacuumCmd) Run(tt *db.TimeTracker) error {
 	checkpoint := cmd.Before
 	if checkpoint.IsZero() {
 		checkpoint = time.Now().Add(-cmd.Since)
@@ -259,7 +213,14 @@ func main() {
 	}
 
 	ctx := kong.Parse(&CLI, kong.Vars{"home": homeDir})
-	if err := ctx.Run(&CLI.CommonConfig); err != nil {
+
+	tt, err := db.New(CLI.CommonConfig.Database)
+	if err != nil {
+		logrus.WithError(err).Fatal("cannot setup application database")
+	}
+	defer tt.Close()
+
+	if err := ctx.Run(tt); err != nil {
 		logrus.WithError(err).WithField("command", ctx.Command).Fatal("cannot run command")
 	}
 }

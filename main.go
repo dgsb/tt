@@ -206,7 +206,9 @@ func (cmd *CurrentCmd) Run(cfg *CommonConfig) error {
 	return nil
 }
 
-type ContinueCmd struct{}
+type ContinueCmd struct {
+	ID string `long:"id" help:"specify an interval ID to continue"`
+}
 
 func (cmd *ContinueCmd) Run(cfg *CommonConfig) error {
 	db, err := setupDB(cfg.Database)
@@ -216,7 +218,7 @@ func (cmd *ContinueCmd) Run(cfg *CommonConfig) error {
 
 	tt := &TimeTracker{db: db}
 
-	if err := tt.Continue(time.Now()); err != nil {
+	if err := tt.Continue(time.Now(), cmd.ID); err != nil {
 		return fmt.Errorf("cannot continue a previously closed interval: %w", err)
 	}
 

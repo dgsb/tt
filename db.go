@@ -441,7 +441,7 @@ func (tt *TimeTracker) Current() (*TaggedInterval, error) {
 
 // Continue opens a new interval with the same tags as the last closed one.
 // It will return an error if there is already an opened interval.
-func (tt *TimeTracker) Continue(t time.Time) error {
+func (tt *TimeTracker) Continue(t time.Time, id string) error {
 	tx, err := tt.db.Begin()
 	if err != nil {
 		return fmt.Errorf("cannot start transaction: %w")
@@ -478,8 +478,9 @@ func (tt *TimeTracker) Continue(t time.Time) error {
 		return fmt.Errorf("requested start intervals belongs to a closed interval")
 	}
 
-	rows, err := tx.Query(`
-		WITH last_id AS (
+	var query string
+	if id == "" {
+		query = `WITH last_id AS (
 			SELECT id
 			FROM intervals
 			WHERE deleted_at IS NULL
@@ -488,7 +489,16 @@ func (tt *TimeTracker) Continue(t time.Time) error {
 		)
 		SELECT interval_tags.tag
 		FROM interval_tags
-			INNER JOIN last_id ON interval_tags.interval_id = last_id.id`)
+			INNER JOIN last_id ON interval_tags.interval_id = last_id.id`
+	} else {
+		query = `
+			SELECT interval_tags.tag
+			FROM intervals JOIN interval_tags ON intervals.id = interval_tags.interval_id
+			WHERE intervals.id = ?
+		`
+	}
+
+	rows, err := tx.Query(query, id)
 	if err != nil {
 		return fmt.Errorf("cannot retrieve tags associated with last closed interval: %w", err)
 	}

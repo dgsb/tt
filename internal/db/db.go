@@ -90,7 +90,7 @@ func (tt *TimeTracker) CheckNoOverlap() error {
 			AND deleted_at IS NULL
 		ORDER BY start_timestamp`)
 	if err != nil {
-		return fmt.Errorf("cannot query the database: %w")
+		return fmt.Errorf("cannot query the database: %w", err)
 	}
 	defer rows.Close()
 
@@ -221,7 +221,7 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 	tx, err := tt.db.Begin()
 	if err != nil {
-		return fmt.Errorf("cannot start transaction: %w")
+		return fmt.Errorf("cannot start transaction: %w", err)
 	}
 	defer func() {
 		if ret != nil {
@@ -230,6 +230,7 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 	}()
 
 	// Check we have a single running timestamp
+	// and that the required stop timestamp is actually after the start timestamp
 	var count, startTimestampUnix uint64
 	row := tx.QueryRow(`
 		SELECT start_timestamp, count(1) over()
@@ -242,6 +243,9 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 	if count > 1 {
 		return fmt.Errorf("multiple opened interval: %d", count)
 	}
+	if startTimestampUnix >= uint64(t.Unix()) {
+		return fmt.Errorf("stop timestamp is not after start timestamp")
+	}
 
 	// Check the requested stop timestamp doesn't include other
 	// closed interval.
@@ -249,7 +253,7 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 		SELECT count(1)
 		FROM intervals
 		WHERE start_timestamp > ?
-			AND start_timestamp <= ?
+			AND start_timestamp < ?
 			AND deleted_at IS NULL`, startTimestampUnix, t.Unix())
 	if err := row.Scan(&count); err != nil {
 		fmt.Errorf("cannot count enclosed interval: %w", err)
@@ -378,7 +382,7 @@ func (tt *TimeTracker) Tag(id string, tags []string) error {
 			INSERT INTO interval_tags (interval_id, tag)
 			VALUES (?, ?)
 			ON CONFLICT DO NOTHING`, id, tag); err != nil {
-			return fmt.Errorf("cannot tag interval %s with %s: %w", id, tag)
+			return fmt.Errorf("cannot tag interval %s with %s: %w", id, tag, err)
 		}
 	}
 
@@ -457,7 +461,7 @@ func (tt *TimeTracker) Current() (*TaggedInterval, error) {
 func (tt *TimeTracker) Continue(t time.Time, id string) error {
 	tx, err := tt.db.Begin()
 	if err != nil {
-		return fmt.Errorf("cannot start transaction: %w")
+		return fmt.Errorf("cannot start transaction: %w", err)
 	}
 	defer func() {
 		tx.Rollback()
@@ -578,7 +582,7 @@ func (tt *TimeTracker) Vacuum(before time.Time) error {
 		)
 		DELETE FROM interval_tags
 		WHERE interval_id IN (SELECT interval_id FROM deleted_ids)`); err != nil {
-		return fmt.Errorf("cannot delete lines from interval_tags table: %w")
+		return fmt.Errorf("cannot delete lines from interval_tags table: %w", err)
 	}
 
 	if _, err := tx.Exec(`

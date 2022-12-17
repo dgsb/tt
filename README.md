@@ -70,6 +70,22 @@ $ tt start meeting
 $ tt start qa
 ```
 
+### Specifying the start and stop timestamp
+
+`start` and `stop` subcommands have `--at` and `--ago` flags to allow to
+specity the timestamp the command must use instead of merely using now.
+
+The `--at` can take several format, it uses in this order the following format and stops as soon
+as one matches:
+ * an RFC3339 formatted timestamp,
+ * an RFC3339 **without** the timezone part, the local host timezone is used
+ * a simple `hh:mm` format (24h wide hour)
+If a format does not match it fallback on the next one.
+
+The `--ago` specify a duration back in time from now to compute the timestamp.
+This flag parameter can take anything that
+[time.ParseDuration](https://pkg.go.dev/time#ParseDuration) understands
+
 ### Manually inspecting the database
 
 The raw content of time tracking database can be accessed directly through the sqlite3 CLI.

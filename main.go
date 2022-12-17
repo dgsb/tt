@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/dgsb/tt/internal/db"
+	itime "github.com/dgsb/tt/internal/time"
 )
 
 type CommonConfig struct {
@@ -18,15 +19,15 @@ type CommonConfig struct {
 }
 
 type StartCmd struct {
-	At   time.Time     `help:"specify the stop timestamp in RFC3339 format" group:"time" xor:"time"`
-	Ago  time.Duration `help:"specify the stop timestamp as a duration in the past" group:"time" xor:"time"`
+	At   itime.Time    `help:"specify the start timestamp in RFC3339 format" group:"time" xor:"time"`
+	Ago  time.Duration `help:"specify the start timestamp as a duration in the past" group:"time" xor:"time"`
 	Tags []string      `arg:"" optional:"" help:"the value to tag the interval with"`
 }
 
 func (cmd *StartCmd) Run(tt *db.TimeTracker) error {
 	startTime := time.Now()
-	if !cmd.At.IsZero() {
-		startTime = cmd.At
+	if !cmd.At.Time().IsZero() {
+		startTime = cmd.At.Time()
 	} else if cmd.Ago != 0 {
 		startTime = time.Now().Add(-cmd.Ago)
 	}
@@ -44,14 +45,14 @@ func (cmd *StartCmd) Run(tt *db.TimeTracker) error {
 }
 
 type StopCmd struct {
-	At  time.Time     `help:"specify the stop timestamp in RFC3339 format" group:"time" xor:"time"`
+	At  itime.Time    `help:"specify the stop timestamp in RFC3339 format" group:"time" xor:"time"`
 	Ago time.Duration `help:"specify the stop timestamp as a duration in the past" group:"time" xor:"time"`
 }
 
 func (cmd *StopCmd) Run(tt *db.TimeTracker) error {
 	stopTime := time.Now()
-	if !cmd.At.IsZero() {
-		stopTime = cmd.At
+	if !cmd.At.Time().IsZero() {
+		stopTime = cmd.At.Time()
 	} else if cmd.Ago != 0 {
 		stopTime = time.Now().Add(-cmd.Ago)
 	}
@@ -64,12 +65,12 @@ func (cmd *StopCmd) Run(tt *db.TimeTracker) error {
 }
 
 type ListCmd struct {
-	At     time.Time `help:"another starting point for the required time period instead of now"`
-	Period string    `arg:"" help:"a logical description of the time period to look at" default:":day" enum:":week,:day,:month,:year"`
+	At     itime.Time `help:"another starting point for the required time period instead of now"`
+	Period string     `arg:"" help:"a logical description of the time period to look at" default:":day" enum:":week,:day,:month,:year"`
 }
 
 func (cmd *ListCmd) Run(tt *db.TimeTracker) error {
-	startTime := cmd.At
+	startTime := cmd.At.Time()
 	if startTime.IsZero() {
 		startTime = time.Now()
 	}

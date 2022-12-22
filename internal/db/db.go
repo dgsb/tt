@@ -14,14 +14,22 @@ import (
 //go:embed migrations/01_base.sql
 var baseMigration string
 
+//go:embed migrations/02_add_timestamp.sql
+var addTimestamp string
+
 func runMigrations(db *sql.DB) error {
 	return darwin.Migrate(
 		darwin.NewGenericDriver(db, darwin.SqliteDialect{}),
 		[]darwin.Migration{
 			{
 				Version:     1,
-				Description: "base table defintion to hold configuration variable",
+				Description: "base table definition to hold configuration variable",
 				Script:      baseMigration,
+			},
+			{
+				Version:     2,
+				Description: "add timestamp on all tables",
+				Script:      addTimestamp,
 			},
 		},
 		nil)
@@ -182,7 +190,7 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	// Ensure all requested tags are already known
 	for _, tag := range tags {
 		if _, err := tx.Exec(
-			`INSERT INTO tags (name) VALUES (?) ON CONFLICT DO NOTHING`,
+			`INSERT INTO tags (name, created_at) VALUES (?, unixepoch('now')) ON CONFLICT DO NOTHING`,
 			tag,
 		); err != nil {
 			return fmt.Errorf("cannot insert missing tag %s: %w", tag, err)
@@ -192,8 +200,8 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	// Insert the new interval
 	var newID uint64
 	row = tx.QueryRow(`
-		INSERT INTO intervals (start_timestamp, stop_timestamp)
-		VALUES(?, NULL)
+		INSERT INTO intervals (start_timestamp, stop_timestamp, created_at)
+		VALUES(?, NULL, unixepoch('now'))
 		RETURNING (id)
 	`, t.Unix())
 	if err := row.Scan(&newID); err != nil {
@@ -203,8 +211,8 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	// Link the new interval with its associated tags
 	for _, tag := range tags {
 		_, err := tx.Exec(`
-			INSERT INTO interval_tags (interval_id, tag)
-			VALUES (?1, ?2)
+			INSERT INTO interval_tags (interval_id, tag, created_at)
+			VALUES (?1, ?2, unixepoch('now'))
 		`, newID, tag)
 		if err != nil {
 			return fmt.Errorf("cannot link new interval with tag %s: %w", tag, err)
@@ -264,7 +272,10 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 
 	// preconditions ok. Close the currently opened interval.
 	_, err = tx.Exec(`
-		UPDATE intervals SET stop_timestamp = ?
+		UPDATE intervals
+		SET
+			stop_timestamp = ?,
+			updated_at = unixepoch('now')
 		WHERE stop_timestamp IS NULL
 			AND deleted_at IS NULL`, t.Unix())
 	if err != nil {
@@ -329,7 +340,8 @@ func (tt *TimeTracker) List(since, until time.Time) ([]TaggedInterval, error) {
 		rows, err := tt.db.Query(`
 			SELECT count(1) over(), tag
 			FROM interval_tags
-			WHERE interval_id = ?`, intervals[idx].Interval.ID)
+			WHERE interval_id = ?
+				AND deleted_at IS NULL`, intervals[idx].Interval.ID)
 		if err != nil {
 			return nil, fmt.Errorf("cannot retrieve associated tags: %w", err)
 		}
@@ -356,10 +368,33 @@ func (tt *TimeTracker) List(since, until time.Time) ([]TaggedInterval, error) {
 	return intervals, nil
 }
 
-func (tt *TimeTracker) Delete(id string) error {
-	_, err := tt.db.Exec(`UPDATE intervals SET deleted_at = ? WHERE id = ?`, time.Now().Unix(), id)
+func (tt *TimeTracker) Delete(id string) (ret error) {
+
+	tx, err := tt.db.Begin()
+	if err != nil {
+		return fmt.Errorf("cannot start transaction: %w", err)
+	}
+	defer func() {
+		if ret != nil {
+			_ = tx.Rollback()
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			ret = fmt.Errorf("cannot commit transaction: %w", err)
+		}
+	}()
+
+	_, err = tx.Exec(`UPDATE intervals SET deleted_at = ? WHERE id = ?`, time.Now().Unix(), id)
 	if err != nil {
 		return fmt.Errorf("cannot delete interval %s: %w", id, err)
+	}
+	_, err = tx.Exec(`
+		UPDATE interval_tags
+		SET deleted_at = ?
+		WHERE interval_id = ?
+			AND deleted_at IS NULL`, time.Now().Unix(), id)
+	if err != nil {
+		return fmt.Errorf("cannot delete interval_tags %s: %w", id, err)
 	}
 	return nil
 }
@@ -374,7 +409,28 @@ func (tt *TimeTracker) Tag(id string, tags []string) error {
 	}()
 
 	for _, tag := range tags {
-		if _, err := tx.Exec(`INSERT INTO tags (name) VALUES (?) ON CONFLICT DO NOTHING`, tag); err != nil {
+
+		// We should try to implement that as a trigger
+		row := tx.QueryRow(`
+			SELECT count(1)
+			FROM interval_tags
+			WHERE interval_id = ? AND tag = ? AND deleted_at IS NULL`, id, tag)
+		if err != nil {
+			return fmt.Errorf("cannot query the database: %w", err)
+		}
+		var count int
+		if err := row.Scan(&count); err != nil {
+			return fmt.Errorf("cannot scan database: %w", err)
+		}
+		if count >= 1 {
+			return fmt.Errorf("duplicated entry in interval_tags for %s and %s", id, tag)
+		}
+
+		if _, err := tx.Exec(`
+				INSERT INTO tags (name, created_at)
+				VALUES (?, unixepoch('now'))
+				ON CONFLICT DO NOTHING`,
+			tag); err != nil {
 			return fmt.Errorf("cannot insert new tags %s: %w", tag, err)
 		}
 
@@ -403,8 +459,9 @@ func (tt *TimeTracker) Untag(id string, tags []string) error {
 
 	for _, tag := range tags {
 		if _, err := tx.Exec(`
-			DELETE FROM interval_tags
-			WHERE interval_id = ? AND tag = ?
+			UPDATE interval_tags
+			SET deleted_at = unixepoch('now')
+			WHERE interval_id = ? AND tag = ? AND deleted_at IS NULL
 		`, id, tag); err != nil {
 			return fmt.Errorf("cannot untag interval %s from %s: %w", id, tag, err)
 		}
@@ -534,15 +591,17 @@ func (tt *TimeTracker) Continue(t time.Time, id string) error {
 
 	var newID int64
 	row = tx.QueryRow(`
-		INSERT INTO intervals (start_timestamp, stop_timestamp)
-		VALUES (?, NULL)
+		INSERT INTO intervals (start_timestamp, stop_timestamp, created_at)
+		VALUES (?, NULL, unixepoch('now'))
 		RETURNING (id)`, t.Unix())
 	if err := row.Scan(&newID); err != nil {
 		return fmt.Errorf("cannot insert new interval: %w", err)
 	}
 
 	for _, t := range tags {
-		_, err := tx.Exec(`INSERT INTO interval_tags (interval_id, tag) VALUES (?, ?)`, newID, t)
+		_, err := tx.Exec(`
+			INSERT INTO interval_tags (interval_id, tag, created_at)
+			VALUES (?, ?, unixepoch('now'))`, newID, t)
 		if err != nil {
 			return fmt.Errorf("cannot tag interval %d with value %s: %w", newID, t, err)
 		}

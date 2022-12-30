@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/GuiaBolso/darwin"
+	"github.com/hashicorp/go-multierror"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -84,8 +85,50 @@ func New(databaseName string) (*TimeTracker, error) {
 	return &TimeTracker{db: db}, nil
 }
 
+// Close releases resources associated with the TimeTracker object.
 func (tt *TimeTracker) Close() error {
 	return tt.db.Close()
+}
+
+// SanityCheck performs a full database scan to validate data.
+// It will call CheckNoOverlap
+func (tt *TimeTracker) SanityCheck() error {
+	err := multierror.Append(nil, tt.CheckNoOverlap())
+	err = multierror.Append(err, tt.IntervalTagsUnicity())
+	return err.ErrorOrNil()
+}
+
+// IntervalTagsUnicity checks the database contains a single row
+// for a interval_id, tag tuple with deleted_at being null.
+func (tt *TimeTracker) IntervalTagsUnicity() error {
+	rows, err := tt.db.Query(`
+		SELECT interval_id, tag
+		FROM interval_tags
+		WHERE deleted_at IS NULL
+		GROUP BY interval_id, tag
+		HAVING count(1) > 1`)
+	if err != nil {
+		return fmt.Errorf("cannot query the database: %w", err)
+	}
+	defer func() {
+		rows.Close()
+	}()
+
+	var merr *multierror.Error
+	for rows.Next() {
+		var (
+			interval int
+			tag      string
+		)
+
+		if err := rows.Scan(&interval, &tag); err != nil {
+			return fmt.Errorf("cannot scan the database: %w", err)
+		}
+
+		merr = multierror.Append(merr, fmt.Errorf("interval_tags unicity failed (%d,%s)", interval, tag))
+	}
+
+	return merr.ErrorOrNil()
 }
 
 // CheckNoOverlap browses the full interval table to check that no registered
@@ -239,7 +282,7 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 
 	// Check we have a single running timestamp
 	// and that the required stop timestamp is actually after the start timestamp
-	var count, startTimestampUnix uint64
+	var count, startTimestampUnix int64
 	row := tx.QueryRow(`
 		SELECT start_timestamp, count(1) over()
 		FROM intervals
@@ -251,7 +294,7 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 	if count > 1 {
 		return fmt.Errorf("multiple opened interval: %d", count)
 	}
-	if startTimestampUnix >= uint64(t.Unix()) {
+	if startTimestampUnix >= t.Unix() {
 		return fmt.Errorf("stop timestamp is not after start timestamp")
 	}
 

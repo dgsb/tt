@@ -11,17 +11,11 @@ func setupTT(t *testing.T) *TimeTracker {
 	tt, err := New(":memory:")
 	require.NoError(t, err)
 
-	/*	fixtures, err := testfixtures.New(
-			testfixtures.Database(tt.db),
-			testfixtures.Dialect("sqlite"),
-			testfixtures.Directory(fixturePath),
-		)
-		require.NoError(t, err)
-
-		err = fixtures.Load()
-		require.NoError(t, err)*/
-
 	t.Cleanup(func() { tt.Close() })
+	t.Cleanup(func() {
+		err := tt.SanityCheck()
+		require.NoError(t, err, "sanity check failed")
+	})
 	return tt
 }
 
@@ -47,12 +41,30 @@ func TestTimeTracker(t *testing.T) {
 			},
 		}, ti)
 
-		err = tt.Stop(time.Time{})
+		err = tt.Stop(now.Add(time.Hour))
 		require.NoError(t, err)
 
 		ti, err = tt.Current()
 		require.NoError(t, err)
 		require.Nil(t, ti)
+	})
+
+	t.Run("stop timestamp before start - failed", func(t *testing.T) {
+		tt := setupTT(t)
+		now := time.Now()
+		err := tt.Start(now, []string{})
+		require.NoError(t, err)
+		err = tt.Stop(now.Add(-time.Hour))
+		require.Error(t, err)
+	})
+
+	t.Run("stop timestamp is zero - failed", func(t *testing.T) {
+		tt := setupTT(t)
+		now := time.Now()
+		err := tt.Start(now, []string{})
+		require.NoError(t, err)
+		err = tt.Stop(time.Time{})
+		require.Error(t, err)
 	})
 
 	t.Run("simple check stop timestamp after start timestamp", func(t *testing.T) {

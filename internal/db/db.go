@@ -8,15 +8,33 @@ import (
 	"time"
 
 	"github.com/GuiaBolso/darwin"
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 )
+
+func init() {
+	sql.Register("sqlite3_tt", &sqlite3.SQLiteDriver{
+		ConnectHook: func(conn *sqlite3.SQLiteConn) error {
+			return conn.RegisterFunc("uuid", func() (string, error) {
+				id, err := uuid.NewRandom()
+				if err != nil {
+					return "", fmt.Errorf("cannot generate random UUID: %w", err)
+				}
+				return id.String(), nil
+			}, false)
+		},
+	})
+}
 
 //go:embed migrations/01_base.sql
 var baseMigration string
 
 //go:embed migrations/02_add_timestamp.sql
 var addTimestamp string
+
+//go:embed migrations/03_add_uuid_key.sql
+var addUUIDKey string
 
 func runMigrations(db *sql.DB) error {
 	return darwin.Migrate(
@@ -32,12 +50,17 @@ func runMigrations(db *sql.DB) error {
 				Description: "add timestamp on all tables",
 				Script:      addTimestamp,
 			},
+			{
+				Version:     3,
+				Description: "add uuid unique key as conflict free identifier",
+				Script:      addUUIDKey,
+			},
 		},
 		nil)
 }
 
 func setupDB(databaseName string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", databaseName)
+	db, err := sql.Open("sqlite3_tt", databaseName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open database %s: %w", databaseName, err)
 	}
@@ -63,6 +86,7 @@ func setupDB(databaseName string) (*sql.DB, error) {
 
 type Interval struct {
 	ID             string
+	UUID           string
 	StartTimestamp time.Time
 	StopTimestamp  time.Time
 }
@@ -102,10 +126,10 @@ func (tt *TimeTracker) SanityCheck() error {
 // for a interval_id, tag tuple with deleted_at being null.
 func (tt *TimeTracker) IntervalTagsUnicity() error {
 	rows, err := tt.db.Query(`
-		SELECT interval_id, tag
+		SELECT interval_uuid, tag
 		FROM interval_tags
 		WHERE deleted_at IS NULL
-		GROUP BY interval_id, tag
+		GROUP BY interval_uuid, tag
 		HAVING count(1) > 1`)
 	if err != nil {
 		return fmt.Errorf("cannot query the database: %w", err)
@@ -241,22 +265,22 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	}
 
 	// Insert the new interval
-	var newID uint64
+	var newUUID string
 	row = tx.QueryRow(`
-		INSERT INTO intervals (start_timestamp, stop_timestamp, created_at)
-		VALUES(?, NULL, unixepoch('now'))
-		RETURNING (id)
+		INSERT INTO intervals (uuid, start_timestamp, stop_timestamp, created_at)
+		VALUES(uuid(), ?, NULL, unixepoch('now'))
+		RETURNING (uuid)
 	`, t.Unix())
-	if err := row.Scan(&newID); err != nil {
+	if err := row.Scan(&newUUID); err != nil {
 		return fmt.Errorf("cannot insert new interval: %w", err)
 	}
 
 	// Link the new interval with its associated tags
 	for _, tag := range tags {
 		_, err := tx.Exec(`
-			INSERT INTO interval_tags (interval_id, tag, created_at)
+			INSERT INTO interval_tags (interval_uuid, tag, created_at)
 			VALUES (?1, ?2, unixepoch('now'))
-		`, newID, tag)
+		`, newUUID, tag)
 		if err != nil {
 			return fmt.Errorf("cannot link new interval with tag %s: %w", tag, err)
 		}
@@ -335,7 +359,7 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 // or after the timestamp given as parameter.
 func (tt *TimeTracker) List(since, until time.Time) ([]TaggedInterval, error) {
 	rows, err := tt.db.Query(`
-		SELECT count(1) over(), id, start_timestamp, stop_timestamp
+		SELECT count(1) over(), id, uuid, start_timestamp, stop_timestamp
 		FROM intervals
 		WHERE start_timestamp >= ?
 			AND start_timestamp < ?
@@ -359,6 +383,7 @@ func (tt *TimeTracker) List(since, until time.Time) ([]TaggedInterval, error) {
 		if err := rows.Scan(
 			&count,
 			&interval.Interval.ID,
+			&interval.Interval.UUID,
 			&unixStartTimestamp,
 			&unixStopTimestamp); err != nil {
 			return nil, fmt.Errorf("cannot scan value for current row: %w", err)
@@ -383,8 +408,8 @@ func (tt *TimeTracker) List(since, until time.Time) ([]TaggedInterval, error) {
 		rows, err := tt.db.Query(`
 			SELECT count(1) over(), tag
 			FROM interval_tags
-			WHERE interval_id = ?
-				AND deleted_at IS NULL`, intervals[idx].Interval.ID)
+			WHERE interval_uuid = ?
+				AND deleted_at IS NULL`, intervals[idx].Interval.UUID)
 		if err != nil {
 			return nil, fmt.Errorf("cannot retrieve associated tags: %w", err)
 		}
@@ -434,7 +459,7 @@ func (tt *TimeTracker) Delete(id string) (ret error) {
 	_, err = tx.Exec(`
 		UPDATE interval_tags
 		SET deleted_at = ?
-		WHERE interval_id = ?
+		WHERE interval_uuid = (SELECT uuid FROM intervals WHERE id = ? LIMIT 1)
 			AND deleted_at IS NULL`, time.Now().Unix(), id)
 	if err != nil {
 		return fmt.Errorf("cannot delete interval_tags %s: %w", id, err)
@@ -451,16 +476,19 @@ func (tt *TimeTracker) Tag(id string, tags []string) error {
 		tx.Rollback()
 	}()
 
+	row := tx.QueryRow(`SELECT uuid FROM intervals WHERE id = ?`, id)
+	var uuid string
+	if err := row.Scan(&uuid); err != nil {
+		return fmt.Errorf("cannot retrieve uuid from database scan: %w", err)
+	}
+
 	for _, tag := range tags {
 
 		// We should try to implement that as a trigger
 		row := tx.QueryRow(`
 			SELECT count(1)
 			FROM interval_tags
-			WHERE interval_id = ? AND tag = ? AND deleted_at IS NULL`, id, tag)
-		if err != nil {
-			return fmt.Errorf("cannot query the database: %w", err)
-		}
+			WHERE interval_uuid = ? AND tag = ? AND deleted_at IS NULL`, uuid, tag)
 		var count int
 		if err := row.Scan(&count); err != nil {
 			return fmt.Errorf("cannot scan database: %w", err)
@@ -478,9 +506,9 @@ func (tt *TimeTracker) Tag(id string, tags []string) error {
 		}
 
 		if _, err := tx.Exec(`
-			INSERT INTO interval_tags (interval_id, tag)
+			INSERT INTO interval_tags (interval_uuid, tag)
 			VALUES (?, ?)
-			ON CONFLICT DO NOTHING`, id, tag); err != nil {
+			ON CONFLICT DO NOTHING`, uuid, tag); err != nil {
 			return fmt.Errorf("cannot tag interval %s with %s: %w", id, tag, err)
 		}
 	}
@@ -504,7 +532,7 @@ func (tt *TimeTracker) Untag(id string, tags []string) error {
 		if _, err := tx.Exec(`
 			UPDATE interval_tags
 			SET deleted_at = unixepoch('now')
-			WHERE interval_id = ? AND tag = ? AND deleted_at IS NULL
+			WHERE interval_uuid = (SELECT uuid FROM intervals WHERE id = ?) AND tag = ? AND deleted_at IS NULL
 		`, id, tag); err != nil {
 			return fmt.Errorf("cannot untag interval %s from %s: %w", id, tag, err)
 		}
@@ -519,7 +547,7 @@ func (tt *TimeTracker) Untag(id string, tags []string) error {
 // Current returned the currently single opened interval if any.
 func (tt *TimeTracker) Current() (*TaggedInterval, error) {
 	row := tt.db.QueryRow(`
-		SELECT id, start_timestamp
+		SELECT id, uuid, start_timestamp
 		FROM intervals
 		WHERE stop_timestamp IS NULL
 			AND deleted_at IS NULL`)
@@ -528,7 +556,7 @@ func (tt *TimeTracker) Current() (*TaggedInterval, error) {
 		unixStartTimestamp int64
 		interval           TaggedInterval
 	)
-	if err := row.Scan(&interval.Interval.ID, &unixStartTimestamp); err != nil {
+	if err := row.Scan(&interval.Interval.ID, &interval.Interval.UUID, &unixStartTimestamp); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
@@ -537,7 +565,7 @@ func (tt *TimeTracker) Current() (*TaggedInterval, error) {
 
 	interval.Interval.StartTimestamp = time.Unix(unixStartTimestamp, 0)
 
-	rows, err := tt.db.Query(`SELECT tag FROM interval_tags WHERE interval_id = ?`, interval.Interval.ID)
+	rows, err := tt.db.Query(`SELECT tag FROM interval_tags WHERE interval_uuid = ?`, interval.Interval.UUID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch tags for interval %s: %w", interval.Interval.ID, err)
 	}
@@ -598,7 +626,7 @@ func (tt *TimeTracker) Continue(t time.Time, id string) error {
 	var query string
 	if id == "" {
 		query = `WITH last_id AS (
-			SELECT id
+			SELECT id, uuid
 			FROM intervals
 			WHERE deleted_at IS NULL
 			ORDER BY start_timestamp DESC
@@ -606,11 +634,11 @@ func (tt *TimeTracker) Continue(t time.Time, id string) error {
 		)
 		SELECT interval_tags.tag
 		FROM interval_tags
-			INNER JOIN last_id ON interval_tags.interval_id = last_id.id`
+			INNER JOIN last_id ON interval_tags.interval_uuid = last_id.uuid`
 	} else {
 		query = `
 			SELECT interval_tags.tag
-			FROM intervals JOIN interval_tags ON intervals.id = interval_tags.interval_id
+			FROM intervals JOIN interval_tags ON intervals.uuid = interval_tags.interval_uuid
 			WHERE intervals.id = ?
 		`
 	}
@@ -632,21 +660,21 @@ func (tt *TimeTracker) Continue(t time.Time, id string) error {
 		return fmt.Errorf("cannot iterate over tags cursor: %w", err)
 	}
 
-	var newID int64
+	var newUUID string
 	row = tx.QueryRow(`
-		INSERT INTO intervals (start_timestamp, stop_timestamp, created_at)
-		VALUES (?, NULL, unixepoch('now'))
-		RETURNING (id)`, t.Unix())
-	if err := row.Scan(&newID); err != nil {
+		INSERT INTO intervals (uuid, start_timestamp, stop_timestamp, created_at)
+		VALUES (uuid(), ?, NULL, unixepoch('now'))
+		RETURNING (uuid)`, t.Unix())
+	if err := row.Scan(&newUUID); err != nil {
 		return fmt.Errorf("cannot insert new interval: %w", err)
 	}
 
 	for _, t := range tags {
 		_, err := tx.Exec(`
-			INSERT INTO interval_tags (interval_id, tag, created_at)
-			VALUES (?, ?, unixepoch('now'))`, newID, t)
+			INSERT INTO interval_tags (interval_uuid, tag, created_at)
+			VALUES (?, ?, unixepoch('now'))`, newUUID, t)
 		if err != nil {
-			return fmt.Errorf("cannot tag interval %d with value %s: %w", newID, t, err)
+			return fmt.Errorf("cannot tag interval %s with value %s: %w", newUUID, t, err)
 		}
 	}
 
@@ -678,12 +706,12 @@ func (tt *TimeTracker) Vacuum(before time.Time) error {
 
 	if _, err := tx.Exec(`
 		WITH deleted_ids AS (
-			SELECT DISTINCT interval_id
-			FROM interval_tags LEFT JOIN intervals ON interval_tags.interval_id = intervals.id
-			WHERE intervals.id IS NULL
+			SELECT DISTINCT interval_uuid
+			FROM interval_tags LEFT JOIN intervals ON interval_tags.interval_uuid = intervals.uuid
+			WHERE intervals.uuid IS NULL
 		)
 		DELETE FROM interval_tags
-		WHERE interval_id IN (SELECT interval_id FROM deleted_ids)`); err != nil {
+		WHERE interval_uuid IN (SELECT interval_uuid FROM deleted_ids)`); err != nil {
 		return fmt.Errorf("cannot delete lines from interval_tags table: %w", err)
 	}
 

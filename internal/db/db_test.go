@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,6 +18,18 @@ func setupTT(t *testing.T) *TimeTracker {
 		require.NoError(t, err, "sanity check failed")
 	})
 	return tt
+}
+
+func TestSqliteBuild(t *testing.T) {
+	tt := setupTT(t)
+	db := tt.db
+
+	row := db.QueryRow(`SELECT uuid()`)
+	require.NotNil(t, row)
+
+	var uuid string
+	err := row.Scan(&uuid)
+	require.NoError(t, err)
 }
 
 func TestTimeTracker(t *testing.T) {
@@ -34,6 +47,9 @@ func TestTimeTracker(t *testing.T) {
 
 		ti, err = tt.Current()
 		require.NoError(t, err)
+		_, err = uuid.Parse(ti.UUID)
+		require.NoError(t, err)
+		ti.UUID = ""
 		require.Equal(t, &TaggedInterval{
 			Interval: Interval{
 				ID:             "1",

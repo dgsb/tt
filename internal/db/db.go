@@ -27,6 +27,11 @@ func init() {
 	})
 }
 
+func rollback(tx *sql.Tx) {
+	// best effort here.
+	_ = tx.Rollback() //nolint:errcheck
+}
+
 //go:embed migrations/01_base.sql
 var baseMigration string
 
@@ -115,16 +120,18 @@ func (tt *TimeTracker) Close() error {
 }
 
 // SanityCheck performs a full database scan to validate data.
-// It will call CheckNoOverlap
+// It will call:
+//   - checkNoOverlap
+//   - intervalTagsUnicity
 func (tt *TimeTracker) SanityCheck() error {
-	err := multierror.Append(nil, tt.CheckNoOverlap())
-	err = multierror.Append(err, tt.IntervalTagsUnicity())
+	err := multierror.Append(nil, tt.checkNoOverlap())
+	err = multierror.Append(err, tt.intervalTagsUnicity())
 	return err.ErrorOrNil()
 }
 
-// IntervalTagsUnicity checks the database contains a single row
+// intervalTagsUnicity checks the database contains a single row
 // for a interval_id, tag tuple with deleted_at being null.
-func (tt *TimeTracker) IntervalTagsUnicity() error {
+func (tt *TimeTracker) intervalTagsUnicity() (ret error) {
 	rows, err := tt.db.Query(`
 		SELECT interval_uuid, tag
 		FROM interval_tags
@@ -135,10 +142,13 @@ func (tt *TimeTracker) IntervalTagsUnicity() error {
 		return fmt.Errorf("cannot query the database: %w", err)
 	}
 	defer func() {
-		rows.Close()
+		if err := rows.Close(); err != nil {
+			ret = multierror.Append(ret, err)
+		}
 	}()
 
 	var merr *multierror.Error
+
 	for rows.Next() {
 		var (
 			interval int
@@ -155,9 +165,9 @@ func (tt *TimeTracker) IntervalTagsUnicity() error {
 	return merr.ErrorOrNil()
 }
 
-// CheckNoOverlap browses the full interval table to check that no registered
+// checkNoOverlap browses the full interval table to check that no registered
 // and closed interval overlaps with another one. Each interval validity is individually checked.
-func (tt *TimeTracker) CheckNoOverlap() error {
+func (tt *TimeTracker) checkNoOverlap() (ret error) {
 	rows, err := tt.db.Query(`
 		SELECT id, start_timestamp, stop_timestamp
 		FROM intervals
@@ -167,7 +177,11 @@ func (tt *TimeTracker) CheckNoOverlap() error {
 	if err != nil {
 		return fmt.Errorf("cannot query the database: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			ret = multierror.Append(ret, err)
+		}
+	}()
 
 	var (
 		current  *Interval
@@ -219,11 +233,7 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	if err != nil {
 		return fmt.Errorf("cannot start transaction: %w", err)
 	}
-	defer func() {
-		if ret != nil {
-			tx.Rollback()
-		}
-	}()
+	defer rollback(tx)
 
 	// Check we don't have an already running opened interval
 	var count int
@@ -298,11 +308,7 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 	if err != nil {
 		return fmt.Errorf("cannot start transaction: %w", err)
 	}
-	defer func() {
-		if ret != nil {
-			tx.Rollback()
-		}
-	}()
+	defer rollback(tx)
 
 	// Check we have a single running timestamp
 	// and that the required stop timestamp is actually after the start timestamp
@@ -357,7 +363,7 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 
 // List returns a list of interval whose start timestamp is equal
 // or after the timestamp given as parameter.
-func (tt *TimeTracker) List(since, until time.Time) ([]TaggedInterval, error) {
+func (tt *TimeTracker) List(since, until time.Time) (retTi []TaggedInterval, retErr error) {
 	rows, err := tt.db.Query(`
 		SELECT count(1) over(), id, uuid, start_timestamp, stop_timestamp
 		FROM intervals
@@ -369,7 +375,12 @@ func (tt *TimeTracker) List(since, until time.Time) ([]TaggedInterval, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot query for interval: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			retTi = nil
+			retErr = fmt.Errorf("closing intervals table rows object: %w", err)
+		}
+	}()
 
 	var intervals []TaggedInterval
 	for rows.Next() {
@@ -413,7 +424,12 @@ func (tt *TimeTracker) List(since, until time.Time) ([]TaggedInterval, error) {
 		if err != nil {
 			return nil, fmt.Errorf("cannot retrieve associated tags: %w", err)
 		}
-		defer rows.Close()
+		defer func() {
+			if err := rows.Close(); err != nil {
+				retTi = nil
+				retErr = fmt.Errorf("closing interval_tags table rows object: %w", err)
+			}
+		}()
 
 		var (
 			count int64
@@ -442,15 +458,7 @@ func (tt *TimeTracker) Delete(id string) (ret error) {
 	if err != nil {
 		return fmt.Errorf("cannot start transaction: %w", err)
 	}
-	defer func() {
-		if ret != nil {
-			_ = tx.Rollback()
-			return
-		}
-		if err := tx.Commit(); err != nil {
-			ret = fmt.Errorf("cannot commit transaction: %w", err)
-		}
-	}()
+	defer rollback(tx)
 
 	_, err = tx.Exec(`UPDATE intervals SET deleted_at = ? WHERE id = ?`, time.Now().Unix(), id)
 	if err != nil {
@@ -464,6 +472,10 @@ func (tt *TimeTracker) Delete(id string) (ret error) {
 	if err != nil {
 		return fmt.Errorf("cannot delete interval_tags %s: %w", id, err)
 	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("cannot commit interval deletion: %w", err)
+	}
 	return nil
 }
 
@@ -472,9 +484,7 @@ func (tt *TimeTracker) Tag(id string, tags []string) error {
 	if err != nil {
 		return fmt.Errorf("cannot start a transaction: %w", err)
 	}
-	defer func() {
-		tx.Rollback()
-	}()
+	defer rollback(tx)
 
 	row := tx.QueryRow(`SELECT uuid FROM intervals WHERE id = ?`, id)
 	var uuid string
@@ -524,9 +534,7 @@ func (tt *TimeTracker) Untag(id string, tags []string) error {
 	if err != nil {
 		return fmt.Errorf("cannot start a transaction: %w", err)
 	}
-	defer func() {
-		tx.Rollback()
-	}()
+	defer rollback(tx)
 
 	for _, tag := range tags {
 		if _, err := tx.Exec(`
@@ -591,9 +599,7 @@ func (tt *TimeTracker) Continue(t time.Time, id string) error {
 	if err != nil {
 		return fmt.Errorf("cannot start transaction: %w", err)
 	}
-	defer func() {
-		tx.Rollback()
-	}()
+	defer rollback(tx)
 
 	var count int64
 	row := tx.QueryRow(`
@@ -693,9 +699,7 @@ func (tt *TimeTracker) Vacuum(before time.Time) error {
 	if err != nil {
 		return fmt.Errorf("cannot start transaction: %w", err)
 	}
-	defer func() {
-		tx.Rollback()
-	}()
+	defer rollback(tx)
 
 	if _, err := tx.Exec(`
 		DELETE FROM intervals

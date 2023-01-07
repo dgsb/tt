@@ -12,7 +12,10 @@ func setupTT(t *testing.T) *TimeTracker {
 	tt, err := New(":memory:")
 	require.NoError(t, err)
 
-	t.Cleanup(func() { tt.Close() })
+	t.Cleanup(func() {
+		err := tt.Close()
+		require.NoError(t, err)
+	})
 	t.Cleanup(func() {
 		err := tt.SanityCheck()
 		require.NoError(t, err, "sanity check failed")

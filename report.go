@@ -28,39 +28,49 @@ func FlatReport(tas []db.TaggedInterval, out io.Writer) error {
 
 	var prevStartTime time.Time
 	var totalDuration time.Duration
-	for _, ta := range tas {
-		if !sameDate(prevStartTime, ta.Interval.StartTimestamp) {
-			tab.Write([]byte(ta.Interval.StartTimestamp.Format("2006-01-02")))
+	var err error
+	twrite := func(s string) {
+		if err != nil {
+			return
 		}
-		tab.Write([]byte("\t"))
-		tab.Write([]byte(ta.Interval.ID))
-		tab.Write([]byte("\t"))
-		tab.Write([]byte(ta.Interval.StartTimestamp.Format("15:04:05")))
-		tab.Write([]byte("\t"))
-		tab.Write([]byte(ta.Interval.StopTimestamp.Format("15:04:05")))
-		tab.Write([]byte("\t"))
+		_, err = tab.Write([]byte(s))
+	}
+	for i := 0; i < len(tas) && err == nil; i++ {
+		ta := tas[i]
+		if !sameDate(prevStartTime, ta.Interval.StartTimestamp) {
+			twrite(ta.Interval.StartTimestamp.Format("2006-01-02"))
+		}
+		twrite("\t")
+		twrite(ta.Interval.ID)
+		twrite("\t")
+		twrite(ta.Interval.StartTimestamp.Format("15:04:05"))
+		twrite("\t")
+		twrite(ta.Interval.StopTimestamp.Format("15:04:05"))
+		twrite("\t")
 
 		if ta.Interval.StopTimestamp.IsZero() {
 			ta.Interval.StopTimestamp = time.Now().Truncate(time.Second)
 		}
 		duration := ta.Interval.StopTimestamp.Sub(ta.Interval.StartTimestamp)
 		totalDuration += duration
-		tab.Write([]byte(duration.String()))
-		tab.Write([]byte("\t"))
+		twrite(duration.String())
+		twrite("\t")
 
-		tab.Write([]byte(strings.Join(ta.Tags, ",")))
-		tab.Write([]byte("\t"))
+		twrite(strings.Join(ta.Tags, ","))
+		twrite("\t")
 
-		tab.Write([]byte("\n"))
+		twrite("\n")
 
 		prevStartTime = ta.Interval.StartTimestamp
 	}
-	tab.Write([]byte("\n"))
-	tab.Write([]byte("Total time"))
-	tab.Write([]byte("\t\t\t\t"))
-	tab.Write([]byte(totalDuration.String()))
-	tab.Write([]byte("\n"))
-	tab.Flush()
+	twrite("\n")
+	twrite("Total time")
+	twrite("\t\t\t\t")
+	twrite(totalDuration.String())
+	twrite("\n")
+	if err == nil {
+		err = tab.Flush()
+	}
 
-	return nil
+	return err
 }

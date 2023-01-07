@@ -223,7 +223,11 @@ func main() {
 	if err != nil {
 		logrus.WithError(err).Fatal("cannot setup application database")
 	}
-	defer tt.Close()
+	defer func() {
+		if err := tt.Close(); err != nil {
+			logrus.WithError(err).Fatal("cannot close TimeTracker object")
+		}
+	}()
 
 	if err := ctx.Run(tt); err != nil {
 		logrus.WithError(err).WithField("command", ctx.Command).Fatal("cannot run command")

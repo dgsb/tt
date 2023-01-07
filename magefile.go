@@ -15,6 +15,7 @@ func Test() error {
 	return err
 }
 
+// Run golangci-lint v1.50.1 from its docker image on the repository
 func Lint() error {
 	wd, err := os.Getwd()
 	if err != nil {

@@ -248,7 +248,7 @@ linters-settings:
     #
     # the regex is used to ignore names within pkg. (default "fmt:.*").
     # see https://github.com/kisielk/errcheck#the-deprecated-method for details
-    ignore: fmt:.*,io/ioutil:^Read.*
+    #ignore: fmt:.*,io/ioutil:^Read.*
 
     # To disable the errcheck built-in exclude list.
     # See `-excludeonly` option in https://github.com/kisielk/errcheck#excluding-functions for details.
@@ -259,14 +259,11 @@ linters-settings:
     #
     # Path to a file containing a list of functions to exclude from checking.
     # See https://github.com/kisielk/errcheck#excluding-functions for details.
-    exclude: /path/to/file.txt
+    #exclude: /path/to/file.txt
 
     # List of functions to exclude from checking, where each entry is a single function to exclude.
     # See https://github.com/kisielk/errcheck#excluding-functions for details.
-    exclude-functions:
-      - io/ioutil.ReadFile
-      - io.Copy(*bytes.Buffer)
-      - io.Copy(os.Stdout)
+    exclude-functions: []
 
   errchkjson:
     # With check-error-free-encoding set to true, errchkjson does warn about errors
@@ -1953,6 +1950,7 @@ linters:
   # Enable specific linter
   # https://golangci-lint.run/usage/linters/#enabled-by-default
   enable:
+    - errcheck
     - goerr113
     - gocyclo
     - goimports
@@ -1977,7 +1975,6 @@ linters:
   #  - dupl
   #  - dupword
   #  - durationcheck
-  #  - errcheck
   #  - errchkjson
   #  - errname
   #  - errorlint
@@ -2099,7 +2096,6 @@ issues:
     # Exclude some linters from running on tests files.
     - path: _test\.go
       linters:
-        - errcheck
         - dupl
         - gosec
 

@@ -740,7 +740,7 @@ linters-settings:
     # Select the Go version to target.
     # Default: 1.13
     # Deprecated: use the global `run.go` instead.
-    go: "1.15"
+    #go: "1.15"
     # Sxxxx checks in https://staticcheck.io/docs/configuration/options/#checks
     # Default: ["*"]
     checks: [ "all" ]
@@ -1953,6 +1953,7 @@ linters:
     - goerr113
     - gocyclo
     - goimports
+    - gosimple
     - misspell
     - rowserrcheck
     - thelper
@@ -2006,7 +2007,6 @@ linters:
   #  - gomodguard
   #  - goprintffuncname
   #  - gosec
-  #  - gosimple
   #  - govet
   #  - grouper
   #  - ifshort

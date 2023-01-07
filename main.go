@@ -14,6 +14,10 @@ import (
 	itime "github.com/dgsb/tt/internal/time"
 )
 
+var (
+	invalidParameterErr = fmt.Errorf("invalid parameter")
+)
+
 type CommonConfig struct {
 	Database string `name:"db" type:"file" default:"${home}/.tt.db" help:"the sqlite database to use for application data"`
 }
@@ -98,7 +102,7 @@ func (cmd *ListCmd) Run(tt *db.TimeTracker) error {
 		startTime = time.Date(year, time.January, 1, 0, 0, 0, 0, time.Local)
 		stopTime = time.Date(year+1, time.January, 1, 0, 0, 0, 0, time.Local)
 	default:
-		return fmt.Errorf("this period is not yet implemented: %s", cmd.Period)
+		return fmt.Errorf("%w: time range not implemented %s", invalidParameterErr, cmd.Period)
 	}
 
 	taggedIntervals, err := tt.List(startTime, stopTime)

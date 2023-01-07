@@ -149,7 +149,7 @@ func (tt *TimeTracker) IntervalTagsUnicity() error {
 			return fmt.Errorf("cannot scan the database: %w", err)
 		}
 
-		merr = multierror.Append(merr, fmt.Errorf("interval_tags unicity failed (%d,%s)", interval, tag))
+		merr = multierror.Append(merr, fmt.Errorf("%w (%d,%s)", IntervalTagsUnicityErr, interval, tag))
 	}
 
 	return merr.ErrorOrNil()
@@ -191,7 +191,7 @@ func (tt *TimeTracker) CheckNoOverlap() error {
 
 		if current.StartTimestamp.Equal(current.StopTimestamp) ||
 			current.StartTimestamp.After(current.StopTimestamp) {
-			return fmt.Errorf("invalid interval: %#v", *current)
+			return fmt.Errorf("%w: %#v", InvalidIntervalErr, *current)
 		}
 
 		if previous == nil {
@@ -200,7 +200,7 @@ func (tt *TimeTracker) CheckNoOverlap() error {
 
 		if current.StartTimestamp.Before(previous.StopTimestamp) {
 			return fmt.Errorf(
-				"bad starting timestamp: current(%#v), previous(%#v)", *current, *previous)
+				"%w: current(%#v), previous(%#v)", InvalidStartTimestampErr, *current, *previous)
 		}
 	}
 
@@ -236,7 +236,7 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 		return fmt.Errorf("cannot count opened intervals: %w", err)
 	}
 	if count >= 1 {
-		return fmt.Errorf("already existing opened interval")
+		return ExistingOpenIntervalErr
 	}
 
 	// Check the requested start time doesn't fall in a known closed interval
@@ -249,7 +249,7 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 		return fmt.Errorf("cannot count overlapping closed interval: %w", err)
 	}
 	if count >= 1 {
-		return fmt.Errorf("required start time already belongs to a closed interval")
+		return InvalidStartTimestampErr
 	}
 
 	// Preconditions ok. Start inserting the new opened interval.
@@ -316,10 +316,10 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 		return fmt.Errorf("cannot count opened interval: %w", err)
 	}
 	if count > 1 {
-		return fmt.Errorf("multiple opened interval: %d", count)
+		return fmt.Errorf("%w: %d", MultipleOpenIntervalErr, count)
 	}
 	if startTimestampUnix >= t.Unix() {
-		return fmt.Errorf("stop timestamp is not after start timestamp")
+		return InvalidStopTimestampErr
 	}
 
 	// Check the requested stop timestamp doesn't include other
@@ -334,7 +334,7 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 		fmt.Errorf("cannot count enclosed interval: %w", err)
 	}
 	if count >= 1 {
-		return fmt.Errorf("invalid stop time")
+		return InvalidStopTimestampErr
 	}
 
 	// preconditions ok. Close the currently opened interval.
@@ -494,7 +494,7 @@ func (tt *TimeTracker) Tag(id string, tags []string) error {
 			return fmt.Errorf("cannot scan database: %w", err)
 		}
 		if count >= 1 {
-			return fmt.Errorf("duplicated entry in interval_tags for %s and %s", id, tag)
+			return fmt.Errorf("%w: id:%s, tag:%s", DuplicatedIntervalTagErr, id, tag)
 		}
 
 		if _, err := tx.Exec(`
@@ -606,7 +606,7 @@ func (tt *TimeTracker) Continue(t time.Time, id string) error {
 	}
 
 	if count >= 1 {
-		return fmt.Errorf("too many opened intervals")
+		return MultipleOpenIntervalErr
 	}
 
 	row = tx.QueryRow(`
@@ -620,7 +620,7 @@ func (tt *TimeTracker) Continue(t time.Time, id string) error {
 	}
 
 	if count >= 1 {
-		return fmt.Errorf("requested start intervals belongs to a closed interval")
+		return InvalidStartTimestampErr
 	}
 
 	var query string

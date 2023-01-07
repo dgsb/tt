@@ -653,7 +653,7 @@ linters-settings:
     # Put imports beginning with prefix after 3rd-party packages.
     # It's a comma-separated list of prefixes.
     # Default: ""
-    local-prefixes: github.com/org/project
+    local-prefixes: github.com/dgsb/tt
 
   golint:
     # Minimal confidence for issues.
@@ -1953,7 +1953,9 @@ linters:
   # Enable specific linter
   # https://golangci-lint.run/usage/linters/#enabled-by-default
   enable:
+    - goerr113
     - gocyclo
+    - goimports
 
   # Enable all available linters.
   # Default: false
@@ -1995,11 +1997,9 @@ linters:
   #  - gocritic
   #  - godot
   #  - godox
-  #  - goerr113
   #  - gofmt
   #  - gofumpt
   #  - goheader
-  #  - goimports
   #  - golint
   #  - gomnd
   #  - gomoddirectives

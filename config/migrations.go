@@ -16,7 +16,7 @@ func runMigrations(db *sql.DB) error {
 		[]darwin.Migration{
 			{
 				Version:     1,
-				Description: "base table defintion to hold configuration variable",
+				Description: "base table definition to hold configuration variable",
 				Script:      baseMigration,
 			},
 		},

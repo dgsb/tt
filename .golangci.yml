@@ -1182,10 +1182,9 @@ linters-settings:
     # Correct spellings using locale preferences for US or UK.
     # Setting locale to US will correct the British spelling of 'colour' to 'color'.
     # Default is to use a neutral variety of English.
-    locale: US
+    locale: UK
     # Default: []
-    ignore-words:
-      - someword
+    ignore-words: []
 
   nakedret:
     # Make an issue if func has more lines of code than this setting, and it has naked returns.
@@ -1954,6 +1953,7 @@ linters:
     - goerr113
     - gocyclo
     - goimports
+    - misspell
     - rowserrcheck
     - thelper
 
@@ -2019,7 +2019,6 @@ linters:
   #  - maintidx
   #  - makezero
   #  - maligned
-  #  - misspell
   #  - nakedret
   #  - nestif
   #  - nilerr

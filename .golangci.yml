@@ -1956,6 +1956,7 @@ linters:
     - misspell
     - rowserrcheck
     - thelper
+    - unused
 
   # Enable all available linters.
   # Default: false
@@ -2048,7 +2049,6 @@ linters:
   #  - typecheck
   #  - unconvert
   #  - unparam
-  #  - unused
   #  - usestdlibvars
   #  - varcheck
   #  - varnamelen

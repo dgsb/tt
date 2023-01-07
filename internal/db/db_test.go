@@ -9,6 +9,7 @@ import (
 )
 
 func setupTT(t *testing.T) *TimeTracker {
+	t.Helper()
 	tt, err := New(":memory:")
 	require.NoError(t, err)
 

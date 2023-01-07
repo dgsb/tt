@@ -102,7 +102,7 @@ output:
   path-prefix: ""
 
   # Sort results by: filepath, line and column.
-  sort-results: false
+  sort-results: true
 
 
 # All available settings of specific linters.
@@ -1702,40 +1702,40 @@ linters-settings:
       first: true
       # Check *testing.T param has name t.
       # Default: true
-      name: false
+      name: true
       # Check t.Helper() begins helper function.
       # Default: true
-      begin: false
+      begin: true
     benchmark:
       # Check *testing.B is first param (or after context.Context) of helper function.
       # Default: true
-      first: false
+      first: true
       # Check *testing.B param has name b.
       # Default: true
-      name: false
+      name: true
       # Check b.Helper() begins helper function.
       # Default: true
-      begin: false
+      begin: true
     tb:
       # Check *testing.TB is first param (or after context.Context) of helper function.
       # Default: true
-      first: false
+      first: true
       # Check *testing.TB param has name tb.
       # Default: true
-      name: false
+      name: true
       # Check tb.Helper() begins helper function.
       # Default: true
-      begin: false
+      begin: true
     fuzz:
       # Check *testing.F is first param (or after context.Context) of helper function.
       # Default: true
-      first: false
+      first: true
       # Check *testing.F param has name f.
       # Default: true
-      name: false
+      name: true
       # Check f.Helper() begins helper function.
       # Default: true
-      begin: false
+      begin: true
 
   usestdlibvars:
     # Suggest the use of http.MethodXX.
@@ -1955,6 +1955,7 @@ linters:
     - gocyclo
     - goimports
     - rowserrcheck
+    - thelper
 
   # Enable all available linters.
   # Default: false
@@ -2044,7 +2045,6 @@ linters:
   #  - tenv
   #  - testableexamples
   #  - testpackage
-  #  - thelper
   #  - tparallel
   #  - typecheck
   #  - unconvert

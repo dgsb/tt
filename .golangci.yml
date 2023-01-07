@@ -1954,6 +1954,7 @@ linters:
     - goerr113
     - gocyclo
     - goimports
+    - rowserrcheck
 
   # Enable all available linters.
   # Default: false
@@ -2034,7 +2035,6 @@ linters:
   #  - promlinter
   #  - reassign
   #  - revive
-  #  - rowserrcheck
   #  - scopelint
   #  - sqlclosecheck
   #  - staticcheck

@@ -161,6 +161,9 @@ func (tt *TimeTracker) intervalTagsUnicity() (ret error) {
 
 		merr = multierror.Append(merr, fmt.Errorf("%w (%d,%s)", IntervalTagsUnicityErr, interval, tag))
 	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("cannot browse interval_tags table: %w", err)
+	}
 
 	return merr.ErrorOrNil()
 }

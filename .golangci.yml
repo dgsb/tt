@@ -926,44 +926,42 @@ linters-settings:
     # Settings per analyzer.
     settings:
       # Analyzer name, run `go tool vet help` to see all analyzers.
-      printf:
-        # Comma-separated list of print function names to check (in addition to default, see `go tool vet help printf`).
-        # Default: []
-        funcs:
-          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Infof
-          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Warnf
-          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Errorf
-          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Fatalf
+      #printf:
+      #  # Comma-separated list of print function names to check (in addition to default, see `go tool vet help printf`).
+      #  # Default: []
+      #  funcs:
+      #    - (github.com/golangci/golangci-lint/pkg/logutils.Log).Infof
+      #    - (github.com/golangci/golangci-lint/pkg/logutils.Log).Warnf
+      #    - (github.com/golangci/golangci-lint/pkg/logutils.Log).Errorf
+      #    - (github.com/golangci/golangci-lint/pkg/logutils.Log).Fatalf
       shadow:
         # Whether to be strict about shadowing; can be noisy.
         # Default: false
-        strict: true
-      unusedresult:
-        # Comma-separated list of functions whose results must be used
-        # (in addition to defaults context.WithCancel,context.WithDeadline,context.WithTimeout,context.WithValue,
-        # errors.New,fmt.Errorf,fmt.Sprint,fmt.Sprintf,sort.Reverse)
-        # Default []
-        funcs:
-          - pkg.MyFunc
-        # Comma-separated list of names of methods of type func() string whose results must be used
-        # (in addition to default Error,String)
-        # Default []
-        stringmethods:
-          - MyMethod
+        strict: false
+      #unusedresult:
+      #  # Comma-separated list of functions whose results must be used
+      #  # (in addition to defaults context.WithCancel,context.WithDeadline,context.WithTimeout,context.WithValue,
+      #  # errors.New,fmt.Errorf,fmt.Sprint,fmt.Sprintf,sort.Reverse)
+      #  # Default []
+      #  funcs: []
+      #  # Comma-separated list of names of methods of type func() string whose results must be used
+      #  # (in addition to default Error,String)
+      #  # Default []
+      #  stringmethods: []
 
     # Disable all analyzers.
     # Default: false
-    disable-all: false
+    disable-all: true
     # Enable analyzers by name (in addition to default).
     # Run `go tool vet help` to see all analyzers.
     # Default: []
-    #enable:
+    enable:
+      - buildtag
     #  - asmdecl
     #  - assign
     #  - atomic
     #  - atomicalign
     #  - bools
-    #  - buildtag
     #  - cgocall
     #  - composites
     #  - copylocks
@@ -997,7 +995,7 @@ linters-settings:
 
     # Enable all analyzers.
     # Default: false
-    enable-all: true
+    enable-all: false
     # Disable analyzers by name.
     # Run `go tool vet help` to see all analyzers.
     # Default: []
@@ -1954,6 +1952,7 @@ linters:
     - gocyclo
     - goimports
     - gosimple
+    - govet
     - misspell
     - rowserrcheck
     - thelper
@@ -2007,7 +2006,6 @@ linters:
   #  - gomodguard
   #  - goprintffuncname
   #  - gosec
-  #  - govet
   #  - grouper
   #  - ifshort
   #  - importas

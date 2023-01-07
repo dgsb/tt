@@ -321,7 +321,7 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 		FROM intervals
 		WHERE stop_timestamp IS NULL AND deleted_at IS NULL
 		LIMIT 1`)
-	if err := row.Scan(&startTimestampUnix, &count); err != nil {
+	if err = row.Scan(&startTimestampUnix, &count); err != nil {
 		return fmt.Errorf("cannot count opened interval: %w", err)
 	}
 	if count > 1 {
@@ -339,7 +339,7 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 		WHERE start_timestamp > ?
 			AND start_timestamp < ?
 			AND deleted_at IS NULL`, startTimestampUnix, t.Unix())
-	if err := row.Scan(&count); err != nil {
+	if err = row.Scan(&count); err != nil {
 		fmt.Errorf("cannot count enclosed interval: %w", err)
 	}
 	if count >= 1 {
@@ -610,7 +610,7 @@ func (tt *TimeTracker) Continue(t time.Time, id string) error {
 		FROM intervals
 		WHERE stop_timestamp IS NULL
 			AND deleted_at IS NULL`)
-	if err := row.Scan(&count); err != nil {
+	if err = row.Scan(&count); err != nil {
 		return fmt.Errorf("cannot cound opened intervals: %w", err)
 	}
 
@@ -624,7 +624,7 @@ func (tt *TimeTracker) Continue(t time.Time, id string) error {
 		WHERE deleted_at IS NULL
 			AND start_timestamp <= ?1
 			AND stop_timestamp > ?1`, t.Unix())
-	if err := row.Scan(&count); err != nil {
+	if err = row.Scan(&count); err != nil {
 		return fmt.Errorf("cannot count overlapping intervals: %w", err)
 	}
 

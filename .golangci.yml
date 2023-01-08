@@ -956,11 +956,15 @@ linters-settings:
     # Run `go tool vet help` to see all analyzers.
     # Default: []
     enable:
+      - assign
       - atomic
       - buildtag
       - copylocks
+      - ifaceassert
+      - loopclosure
+      - lostcancel
+      - shadow
     #  - asmdecl
-    #  - assign
     #  - atomicalign
     #  - bools
     #  - cgocall
@@ -971,14 +975,10 @@ linters-settings:
     #  - findcall
     #  - framepointer
     #  - httpresponse
-    #  - ifaceassert
-    #  - loopclosure
-    #  - lostcancel
     #  - nilfunc
     #  - nilness
     #  - printf
     #  - reflectvaluecompare
-    #  - shadow
     #  - shift
     #  - sigchanyzer
     #  - sortslice

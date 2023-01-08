@@ -964,6 +964,7 @@ linters-settings:
       - loopclosure
       - lostcancel
       - shadow
+      - unreachable
       - unusedresult
     #  - asmdecl
     #  - atomicalign
@@ -989,7 +990,6 @@ linters-settings:
     #  - testinggoroutine
     #  - tests
     #  - unmarshal
-    #  - unreachable
     #  - unsafeptr
     #  - unusedwrite
 

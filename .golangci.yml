@@ -964,6 +964,7 @@ linters-settings:
       - loopclosure
       - lostcancel
       - shadow
+      - unusedresult
     #  - asmdecl
     #  - atomicalign
     #  - bools
@@ -990,7 +991,6 @@ linters-settings:
     #  - unmarshal
     #  - unreachable
     #  - unsafeptr
-    #  - unusedresult
     #  - unusedwrite
 
     # Enable all analyzers.

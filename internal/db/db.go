@@ -340,7 +340,7 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 			AND start_timestamp < ?
 			AND deleted_at IS NULL`, startTimestampUnix, t.Unix())
 	if err = row.Scan(&count); err != nil {
-		fmt.Errorf("cannot count enclosed interval: %w", err)
+		return fmt.Errorf("cannot count enclosed interval: %w", err)
 	}
 	if count >= 1 {
 		return InvalidStopTimestampErr

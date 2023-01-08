@@ -956,42 +956,42 @@ linters-settings:
     # Run `go tool vet help` to see all analyzers.
     # Default: []
     enable:
+      - asmdecl
       - assign
       - atomic
+      - atomicalign
+      - bools
       - buildtag
+      - cgocall
+      - composites
       - copylocks
+      - deepequalerrors
+      - errorsas
+      - findcall
+      - framepointer
+      - httpresponse
       - ifaceassert
       - loopclosure
       - lostcancel
+      - nilfunc
+      - nilness
+      - printf
+      - reflectvaluecompare
+      - sigchanyzer
       - shadow
+      - shift
+      - sortslice
+      - stdmethods
+      - stringintconv
+      - structtag
+      - testinggoroutine
+      - tests
+      - unmarshal
       - unreachable
+      - unsafeptr
       - unusedresult
-    #  - asmdecl
-    #  - atomicalign
-    #  - bools
-    #  - cgocall
-    #  - composites
-    #  - deepequalerrors
-    #  - errorsas
+      - unusedwrite
     #  - fieldalignment
-    #  - findcall
-    #  - framepointer
-    #  - httpresponse
-    #  - nilfunc
-    #  - nilness
-    #  - printf
-    #  - reflectvaluecompare
-    #  - shift
-    #  - sigchanyzer
-    #  - sortslice
-    #  - stdmethods
-    #  - stringintconv
-    #  - structtag
-    #  - testinggoroutine
-    #  - tests
-    #  - unmarshal
-    #  - unsafeptr
-    #  - unusedwrite
 
     # Enable all analyzers.
     # Default: false

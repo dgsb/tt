@@ -956,11 +956,11 @@ linters-settings:
     # Run `go tool vet help` to see all analyzers.
     # Default: []
     enable:
+      - atomic
       - buildtag
       - copylocks
     #  - asmdecl
     #  - assign
-    #  - atomic
     #  - atomicalign
     #  - bools
     #  - cgocall

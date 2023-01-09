@@ -257,6 +257,7 @@ func TestTimeTracker(t *testing.T) {
 		itv, err := tt.List(
 			time.Date(2022, 2, 25, 11, 0, 0, 0, time.UTC),
 			time.Date(2022, 2, 25, 20, 0, 0, 0, time.UTC))
+		require.NoError(t, err)
 		require.Len(t, itv, 4)
 		require.Equal(t, []string{"tag1", "tag2"}, itv[0].Tags)
 		require.Equal(t, []string{"tag3", "tag4"}, itv[1].Tags)

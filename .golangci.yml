@@ -1953,6 +1953,7 @@ linters:
     - goimports
     - gosimple
     - govet
+    - ineffassign
     - misspell
     - rowserrcheck
     - thelper
@@ -2009,7 +2010,6 @@ linters:
   #  - grouper
   #  - ifshort
   #  - importas
-  #  - ineffassign
   #  - interfacebloat
   #  - interfacer
   #  - ireturn

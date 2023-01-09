@@ -5,11 +5,11 @@ import (
 )
 
 var (
-	DuplicatedIntervalTagErr = fmt.Errorf("duplicated interval tags")
-	ExistingOpenIntervalErr  = fmt.Errorf("already existing opened interval")
-	IntervalTagsUnicityErr   = fmt.Errorf("interval_tags unicity failed")
-	InvalidIntervalErr       = fmt.Errorf("invalid interval")
-	InvalidStartTimestampErr = fmt.Errorf("invalid start timestamp")
-	InvalidStopTimestampErr  = fmt.Errorf("invalid stop timestamp")
-	MultipleOpenIntervalErr  = fmt.Errorf("multiple opened interval")
+	ErrDuplicatedIntervalTag = fmt.Errorf("duplicated interval tags")
+	ErrExistingOpenInterval  = fmt.Errorf("already existing opened interval")
+	ErrIntervalTagsUnicity   = fmt.Errorf("interval_tags unicity failed")
+	ErrInvalidInterval       = fmt.Errorf("invalid interval")
+	ErrInvalidStartTimestamp = fmt.Errorf("invalid start timestamp")
+	ErrInvalidStopTimestamp  = fmt.Errorf("invalid stop timestamp")
+	ErrMultipleOpenInterval  = fmt.Errorf("multiple opened interval")
 )

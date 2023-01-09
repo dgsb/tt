@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var UnparsableTimesampFormatErr = fmt.Errorf("unparsable timestamp format")
+var ErrUnparsableTimesampFormat = fmt.Errorf("unparsable timestamp format")
 var (
 	local = time.Local
 	now   = time.Now
@@ -40,7 +40,7 @@ func (t *Time) UnmarshalText(data []byte) error {
 		return nil
 	}
 
-	return fmt.Errorf("%w: %s", UnparsableTimesampFormatErr, string(data))
+	return fmt.Errorf("%w: %s", ErrUnparsableTimesampFormat, string(data))
 }
 
 func (t *Time) Time() time.Time {

@@ -1949,6 +1949,7 @@ linters:
   enable:
     - dupl
     - errcheck
+    - errname
     - goerr113
     - gocyclo
     - goimports
@@ -1982,7 +1983,6 @@ linters:
   #  - dupword
   #  - durationcheck
   #  - errchkjson
-  #  - errname
   #  - errorlint
   #  - execinquery
   #  - exhaustive

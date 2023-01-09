@@ -21,7 +21,7 @@ func FlatReport(tas []db.TaggedInterval, out io.Writer) error {
 	if !sort.SliceIsSorted(tas, func(i, j int) bool {
 		return tas[i].Interval.StartTimestamp.Unix() < tas[j].Interval.StartTimestamp.Unix()
 	}) {
-		return fmt.Errorf("%w: input tagged interval is not sorted", invalidParameterErr)
+		return fmt.Errorf("%w: input tagged interval is not sorted", errInvalidParameter)
 	}
 
 	tab := tabwriter.NewWriter(out, 16, 4, 0, ' ', 0)

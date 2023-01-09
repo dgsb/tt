@@ -1958,6 +1958,7 @@ linters:
     - rowserrcheck
     - staticcheck
     - thelper
+    - typecheck
     - unused
 
   # Enable all available linters.
@@ -2044,7 +2045,6 @@ linters:
   #  - testableexamples
   #  - testpackage
   #  - tparallel
-  #  - typecheck
   #  - unconvert
   #  - unparam
   #  - usestdlibvars

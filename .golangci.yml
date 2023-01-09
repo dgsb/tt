@@ -1950,6 +1950,7 @@ linters:
     - dupl
     - errcheck
     - errname
+    - forcetypeassert
     - goerr113
     - gocyclo
     - goimports
@@ -1990,7 +1991,6 @@ linters:
   #  - exhaustruct
   #  - exportloopref
   #  - forbidigo
-  #  - forcetypeassert
   #  - funlen
   #  - gci
   #  - gochecknoglobals

@@ -1947,6 +1947,7 @@ linters:
   # Enable specific linter
   # https://golangci-lint.run/usage/linters/#enabled-by-default
   enable:
+    - dupl
     - errcheck
     - goerr113
     - gocyclo
@@ -1978,7 +1979,6 @@ linters:
   #  - decorder
   #  - depguard
   #  - dogsled
-  #  - dupl
   #  - dupword
   #  - durationcheck
   #  - errchkjson

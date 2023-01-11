@@ -9,10 +9,14 @@ import (
 	"github.com/magefile/mage/sh"
 )
 
+// Build the tt binary
+func Build() error {
+	return sh.Run("go", "build", "./")
+}
+
+// Run the test suite
 func Test() error {
-	wd, err := os.Getwd()
-	fmt.Println(wd)
-	return err
+	return sh.Run("go", "test", "./...")
 }
 
 // Run golangci-lint v1.50.1 from its docker image on the repository

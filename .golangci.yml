@@ -1949,6 +1949,7 @@ linters:
   enable:
     - asciicheck
     - bodyclose
+    - containedctx
     - dupl
     - errcheck
     - errname
@@ -1974,7 +1975,6 @@ linters:
   #disable:
   #  - asasalint
   #  - bidichk
-  #  - containedctx
   #  - contextcheck
   #  - cyclop
   #  - deadcode

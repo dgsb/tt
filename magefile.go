@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
 )
+
+var Default = All
 
 // Build the tt binary
 func Build() error {
@@ -30,4 +33,13 @@ func Lint() error {
 		"docker", "run", "-v", wd+":/tt", "-w", "/tt", "--rm", "golangci/golangci-lint:v1.50.1",
 		"golangci-lint", "run", "./...")
 	return err
+}
+
+func Failed() error {
+	return fmt.Errorf("failed")
+}
+
+func All() {
+	mg.Deps(Build, Test)
+	mg.Deps(Lint)
 }

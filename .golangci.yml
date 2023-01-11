@@ -1950,6 +1950,7 @@ linters:
     - asciicheck
     - bodyclose
     - containedctx
+    - contextcheck
     - dupl
     - errcheck
     - errname
@@ -1975,7 +1976,6 @@ linters:
   #disable:
   #  - asasalint
   #  - bidichk
-  #  - contextcheck
   #  - cyclop
   #  - deadcode
   #  - decorder

@@ -1948,6 +1948,7 @@ linters:
   # https://golangci-lint.run/usage/linters/#enabled-by-default
   enable:
     - asciicheck
+    - bodyclose
     - dupl
     - errcheck
     - errname
@@ -1973,7 +1974,6 @@ linters:
   #disable:
   #  - asasalint
   #  - bidichk
-  #  - bodyclose
   #  - containedctx
   #  - contextcheck
   #  - cyclop

@@ -364,6 +364,36 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 	return nil
 }
 
+func (tt *TimeTracker) getIntervalTags(intervalUUID string) (tags []string, retErr error) {
+	rows, err := tt.db.Query(`
+		SELECT tag
+		FROM interval_tags
+		WHERE interval_uuid = ?
+			AND deleted_at IS NULL`, intervalUUID)
+	if err != nil {
+		return nil, fmt.Errorf("cannot retrieve associated tags: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			tags = nil
+			retErr = fmt.Errorf("closing interval_tags table rows object: %w", err)
+		}
+	}()
+
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, fmt.Errorf("cannot scan value for current interval tags row: %w", err)
+		}
+		tags = append(tags, tag)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("cannot iterate over associated tags rows: %w", err)
+	}
+
+	return
+}
+
 // List returns a list of interval whose start timestamp is equal
 // or after the timestamp given as parameter.
 func (tt *TimeTracker) List(since, until time.Time) (retTi []TaggedInterval, retErr error) {
@@ -419,37 +449,11 @@ func (tt *TimeTracker) List(since, until time.Time) (retTi []TaggedInterval, ret
 	}
 
 	for idx := range intervals {
-		rows, err := tt.db.Query(`
-			SELECT count(1) over(), tag
-			FROM interval_tags
-			WHERE interval_uuid = ?
-				AND deleted_at IS NULL`, intervals[idx].Interval.UUID)
+		tags, err := tt.getIntervalTags(intervals[idx].Interval.UUID)
 		if err != nil {
-			return nil, fmt.Errorf("cannot retrieve associated tags: %w", err)
+			return nil, err
 		}
-		defer func() {
-			if err := rows.Close(); err != nil {
-				retTi = nil
-				retErr = fmt.Errorf("closing interval_tags table rows object: %w", err)
-			}
-		}()
-
-		var (
-			count int64
-			tag   string
-		)
-		for rows.Next() {
-			if err := rows.Scan(&count, &tag); err != nil {
-				return nil, fmt.Errorf("cannot scan value for current interval tags row: %w", err)
-			}
-			if intervals[idx].Tags == nil {
-				intervals[idx].Tags = make([]string, 0, count)
-			}
-			intervals[idx].Tags = append(intervals[idx].Tags, tag)
-		}
-		if err := rows.Err(); err != nil {
-			return nil, fmt.Errorf("cannot iterate over associated tags rows: %w", err)
-		}
+		intervals[idx].Tags = tags
 	}
 
 	return intervals, nil

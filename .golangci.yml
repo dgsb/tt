@@ -1882,7 +1882,9 @@ linters:
     - govet
     - ineffassign
     - lll
+    - makezero
     - misspell
+    - reassign
     - rowserrcheck
     - staticcheck
     - thelper
@@ -1935,7 +1937,6 @@ linters:
   #  - ireturn
   #  - loggercheck
   #  - maintidx
-  #  - makezero
   #  - maligned
   #  - nakedret
   #  - nestif
@@ -1951,7 +1952,6 @@ linters:
   #  - prealloc
   #  - predeclared
   #  - promlinter
-  #  - reassign
   #  - revive
   #  - scopelint
   #  - sqlclosecheck

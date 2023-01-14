@@ -572,15 +572,11 @@ linters-settings:
   gofmt:
     # Simplify code: gofmt with `-s` option.
     # Default: true
-    simplify: false
+    simplify: true
     # Apply the rewrite rules to the source before reformatting.
     # https://pkg.go.dev/cmd/gofmt
     # Default: []
-    rewrite-rules:
-      - pattern: 'interface{}'
-        replacement: 'any'
-      - pattern: 'a[b:len(a)]'
-        replacement: 'a[b:]'
+    rewrite-rules: []
 
   gofumpt:
     # Select the Go version to target.
@@ -1947,6 +1943,7 @@ linters:
     - gocritic
     - gocyclo
     - goerr113
+    - gofmt
     - goimports
     - gosimple
     - govet
@@ -1989,7 +1986,6 @@ linters:
   #  - goconst
   #  - godot
   #  - godox
-  #  - gofmt
   #  - gofumpt
   #  - goheader
   #  - golint

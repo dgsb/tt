@@ -443,6 +443,7 @@ linters-settings:
     # Default: []
     enabled-tags:
       - diagnostic
+      - performance
       - style
     #disabled-tags: []
 

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/GuiaBolso/darwin"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-sqlite3"
@@ -38,38 +37,6 @@ func completeTransaction(
 	}
 }
 
-//go:embed migrations/01_base.sql
-var baseMigration string
-
-//go:embed migrations/02_add_timestamp.sql
-var addTimestamp string
-
-//go:embed migrations/03_add_uuid_key.sql
-var addUUIDKey string
-
-func runMigrations(db *sql.DB) error {
-	return darwin.Migrate(
-		darwin.NewGenericDriver(db, darwin.SqliteDialect{}),
-		[]darwin.Migration{
-			{
-				Version:     1,
-				Description: "base table definition to hold configuration variable",
-				Script:      baseMigration,
-			},
-			{
-				Version:     2,
-				Description: "add timestamp on all tables",
-				Script:      addTimestamp,
-			},
-			{
-				Version:     3,
-				Description: "add uuid unique key as conflict free identifier",
-				Script:      addUUIDKey,
-			},
-		},
-		nil)
-}
-
 func setupDB(databaseName string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite3_tt", databaseName)
 	if err != nil {
@@ -79,7 +46,7 @@ func setupDB(databaseName string) (*sql.DB, error) {
 		return nil, fmt.Errorf("cannot validate database connection %s: %w", databaseName, err)
 	}
 
-	if err := runMigrations(db); err != nil {
+	if err := runSqliteMigrations(db); err != nil {
 		return nil, fmt.Errorf("cannot run schema migration on database %s: %w", databaseName, err)
 	}
 

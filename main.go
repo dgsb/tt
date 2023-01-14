@@ -1,3 +1,4 @@
+//nolint:lll // we accept long lines for struct field tags used by kong
 package main
 
 import (

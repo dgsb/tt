@@ -165,7 +165,8 @@ func (tt *TimeTracker) intervalTagsUnicity() (ret error) {
 			return fmt.Errorf("cannot scan the database: %w", err)
 		}
 
-		merr = multierror.Append(merr, fmt.Errorf("%w (%d,%s)", ErrIntervalTagsUnicity, interval, tag))
+		merr = multierror.Append(
+			merr, fmt.Errorf("%w (%d,%s)", ErrIntervalTagsUnicity, interval, tag))
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("cannot browse interval_tags table: %w", err)
@@ -276,7 +277,9 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	// Ensure all requested tags are already known
 	for _, tag := range tags {
 		if _, err := tx.Exec(
-			`INSERT INTO tags (name, created_at) VALUES (?, unixepoch('now')) ON CONFLICT DO NOTHING`,
+			`INSERT INTO tags (name, created_at)
+			VALUES (?, unixepoch('now'))
+			ON CONFLICT DO NOTHING`,
 			tag,
 		); err != nil {
 			return fmt.Errorf("cannot insert missing tag %s: %w", tag, err)
@@ -541,7 +544,8 @@ func (tt *TimeTracker) Untag(id string, tags []string) (ret error) {
 		if _, err := tx.Exec(`
 			UPDATE interval_tags
 			SET deleted_at = unixepoch('now')
-			WHERE interval_uuid = (SELECT uuid FROM intervals WHERE id = ?) AND tag = ? AND deleted_at IS NULL
+			WHERE interval_uuid = (SELECT uuid FROM intervals WHERE id = ?)
+				AND tag = ? AND deleted_at IS NULL
 		`, id, tag); err != nil {
 			return fmt.Errorf("cannot untag interval %s from %s: %w", id, tag, err)
 		}
@@ -562,7 +566,9 @@ func (tt *TimeTracker) Current() (*TaggedInterval, error) {
 		unixStartTimestamp int64
 		interval           TaggedInterval
 	)
-	if err := row.Scan(&interval.Interval.ID, &interval.Interval.UUID, &unixStartTimestamp); err != nil {
+	if err := row.Scan(
+		&interval.Interval.ID, &interval.Interval.UUID, &unixStartTimestamp,
+	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
@@ -571,7 +577,9 @@ func (tt *TimeTracker) Current() (*TaggedInterval, error) {
 
 	interval.Interval.StartTimestamp = time.Unix(unixStartTimestamp, 0)
 
-	rows, err := tt.db.Query(`SELECT tag FROM interval_tags WHERE interval_uuid = ?`, interval.Interval.UUID)
+	rows, err := tt.db.Query(
+		`SELECT tag FROM interval_tags WHERE interval_uuid = ?`,
+		interval.Interval.UUID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch tags for interval %s: %w", interval.Interval.ID, err)
 	}

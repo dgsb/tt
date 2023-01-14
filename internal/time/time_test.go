@@ -17,7 +17,11 @@ func TestTime_UnmarshalText(t *testing.T) {
 		err := json.Unmarshal([]byte(`{"t": "2022-12-11T16:44:17+01:00"}`), &testData)
 		require.NoError(t, err)
 		expectedTimestamp := time.Date(2022, 12, 11, 15, 44, 17, 0, time.UTC)
-		require.True(t, expectedTimestamp.Equal(time.Time(testData.T)), "%s %s", expectedTimestamp.String(), time.Time(testData.T).String())
+		require.True(t,
+			expectedTimestamp.Equal(time.Time(testData.T)),
+			"%s %s",
+			expectedTimestamp.String(),
+			time.Time(testData.T).String())
 	})
 
 	t.Run("rfc3339 no timezone", func(t *testing.T) {
@@ -28,7 +32,11 @@ func TestTime_UnmarshalText(t *testing.T) {
 		err := json.Unmarshal([]byte(`{"t": "2022-12-11T16:44:17+01:00"}`), &testData)
 		require.NoError(t, err)
 		expectedTimestamp := time.Date(2022, 12, 11, 16, 44, 17, 0, time.Local)
-		require.True(t, expectedTimestamp.Equal(time.Time(testData.T)), "%s != %s", expectedTimestamp.String(), time.Time(testData.T).String())
+		require.True(t,
+			expectedTimestamp.Equal(time.Time(testData.T)),
+			"%s != %s",
+			expectedTimestamp.String(),
+			time.Time(testData.T).String())
 	})
 
 	t.Run("time only", func(t *testing.T) {
@@ -47,6 +55,10 @@ func TestTime_UnmarshalText(t *testing.T) {
 		err := json.Unmarshal([]byte(`{"t": "00:33"}`), &testData)
 		require.NoError(t, err)
 		expectedTimestamp := time.Date(2022, 12, 10, 23, 33, 0, 0, time.UTC)
-		require.True(t, expectedTimestamp.Equal(time.Time(testData.T)), "%s != %s", expectedTimestamp.String(), time.Time(testData.T).String())
+		require.True(t,
+			expectedTimestamp.Equal(time.Time(testData.T)),
+			"%s != %s",
+			expectedTimestamp.String(),
+			time.Time(testData.T).String())
 	})
 }

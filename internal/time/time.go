@@ -28,15 +28,18 @@ func (t *Time) UnmarshalText(data []byte) error {
 	}
 
 	// Use the local time zone when not specified
-	if otherT, err = time.ParseInLocation("2006-01-02T15:04:05", string(data), time.Local); err == nil {
+	otherT, err = time.ParseInLocation("2006-01-02T15:04:05", string(data), time.Local)
+	if err == nil {
 		*t = Time(otherT)
 		return nil
 	}
 
 	// Use the current day in local timezone when only the time part is specified
-	if otherT, err = time.ParseInLocation("15:04", string(data), time.Local); err == nil {
+	otherT, err = time.ParseInLocation("15:04", string(data), time.Local)
+	if err == nil {
 		year, month, day := now().Local().Date()
-		*t = Time(time.Date(year, month, day, otherT.Hour(), otherT.Minute(), otherT.Second(), 0, local))
+		*t = Time(time.Date(
+			year, month, day, otherT.Hour(), otherT.Minute(), otherT.Second(), 0, local))
 		return nil
 	}
 

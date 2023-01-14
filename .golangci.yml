@@ -1886,6 +1886,7 @@ linters:
     - misspell
     - reassign
     - rowserrcheck
+    - sqlclosecheck
     - staticcheck
     - thelper
     - typecheck
@@ -1954,7 +1955,6 @@ linters:
   #  - promlinter
   #  - revive
   #  - scopelint
-  #  - sqlclosecheck
   #  - structcheck
   #  - stylecheck
   #  - tagliatelle

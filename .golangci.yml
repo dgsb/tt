@@ -443,6 +443,7 @@ linters-settings:
     # Default: []
     enabled-tags:
       - diagnostic
+      - style
     #disabled-tags: []
 
     # Settings passed to gocritic.

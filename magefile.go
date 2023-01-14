@@ -35,10 +35,6 @@ func Lint() error {
 	return err
 }
 
-func Failed() error {
-	return fmt.Errorf("failed")
-}
-
 func All() {
 	mg.Deps(Build, Test)
 	mg.Deps(Lint)

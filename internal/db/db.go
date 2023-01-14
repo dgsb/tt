@@ -27,9 +27,15 @@ func init() {
 	})
 }
 
-func rollback(tx *sql.Tx) {
-	// best effort here.
-	_ = tx.Rollback() //nolint:errcheck
+func completeTransaction(
+	tx *sql.Tx,
+	retErr *error, //nolint:gocritic
+) {
+	if *retErr != nil {
+		*retErr = multierror.Append(*retErr, tx.Rollback())
+	} else if err := tx.Commit(); err != nil {
+		*retErr = multierror.Append(fmt.Errorf("cannot commit transaction: %w", err), tx.Rollback())
+	}
 }
 
 //go:embed migrations/01_base.sql
@@ -236,7 +242,7 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	if err != nil {
 		return fmt.Errorf("cannot start transaction: %w", err)
 	}
-	defer rollback(tx)
+	defer completeTransaction(tx, &ret)
 
 	// Check we don't have an already running opened interval
 	var count int
@@ -299,9 +305,6 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("cannot commit new interval into the database: %w", err)
-	}
 	return nil
 }
 
@@ -311,7 +314,7 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 	if err != nil {
 		return fmt.Errorf("cannot start transaction: %w", err)
 	}
-	defer rollback(tx)
+	defer completeTransaction(tx, &ret)
 
 	// Check we have a single running timestamp
 	// and that the required stop timestamp is actually after the start timestamp
@@ -358,9 +361,6 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 		return fmt.Errorf("cannot update opened interval: %w", err)
 	}
 
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("cannot commit transaction: %w", err)
-	}
 	return nil
 }
 
@@ -465,7 +465,7 @@ func (tt *TimeTracker) Delete(id string) (ret error) {
 	if err != nil {
 		return fmt.Errorf("cannot start transaction: %w", err)
 	}
-	defer rollback(tx)
+	defer completeTransaction(tx, &ret)
 
 	_, err = tx.Exec(`UPDATE intervals SET deleted_at = ? WHERE id = ?`, time.Now().Unix(), id)
 	if err != nil {
@@ -480,22 +480,19 @@ func (tt *TimeTracker) Delete(id string) (ret error) {
 		return fmt.Errorf("cannot delete interval_tags %s: %w", id, err)
 	}
 
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("cannot commit interval deletion: %w", err)
-	}
 	return nil
 }
 
-func (tt *TimeTracker) Tag(id string, tags []string) error {
+func (tt *TimeTracker) Tag(id string, tags []string) (ret error) {
 	tx, err := tt.db.Begin()
 	if err != nil {
 		return fmt.Errorf("cannot start a transaction: %w", err)
 	}
-	defer rollback(tx)
+	defer completeTransaction(tx, &ret)
 
 	row := tx.QueryRow(`SELECT uuid FROM intervals WHERE id = ?`, id)
-	var uuid string
-	if err := row.Scan(&uuid); err != nil {
+	var intervalUUID string
+	if err := row.Scan(&intervalUUID); err != nil {
 		return fmt.Errorf("cannot retrieve uuid from database scan: %w", err)
 	}
 
@@ -505,7 +502,7 @@ func (tt *TimeTracker) Tag(id string, tags []string) error {
 		row := tx.QueryRow(`
 			SELECT count(1)
 			FROM interval_tags
-			WHERE interval_uuid = ? AND tag = ? AND deleted_at IS NULL`, uuid, tag)
+			WHERE interval_uuid = ? AND tag = ? AND deleted_at IS NULL`, intervalUUID, tag)
 		var count int
 		if err := row.Scan(&count); err != nil {
 			return fmt.Errorf("cannot scan database: %w", err)
@@ -525,23 +522,20 @@ func (tt *TimeTracker) Tag(id string, tags []string) error {
 		if _, err := tx.Exec(`
 			INSERT INTO interval_tags (interval_uuid, tag)
 			VALUES (?, ?)
-			ON CONFLICT DO NOTHING`, uuid, tag); err != nil {
+			ON CONFLICT DO NOTHING`, intervalUUID, tag); err != nil {
 			return fmt.Errorf("cannot tag interval %s with %s: %w", id, tag, err)
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("cannot commit the transaction: %w", err)
-	}
 	return nil
 }
 
-func (tt *TimeTracker) Untag(id string, tags []string) error {
+func (tt *TimeTracker) Untag(id string, tags []string) (ret error) {
 	tx, err := tt.db.Begin()
 	if err != nil {
 		return fmt.Errorf("cannot start a transaction: %w", err)
 	}
-	defer rollback(tx)
+	defer completeTransaction(tx, &ret)
 
 	for _, tag := range tags {
 		if _, err := tx.Exec(`
@@ -553,9 +547,6 @@ func (tt *TimeTracker) Untag(id string, tags []string) error {
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("cannot commit transaction: %w", err)
-	}
 	return nil
 }
 
@@ -601,12 +592,12 @@ func (tt *TimeTracker) Current() (*TaggedInterval, error) {
 
 // Continue opens a new interval with the same tags as the last closed one.
 // It will return an error if there is already an opened interval.
-func (tt *TimeTracker) Continue(t time.Time, id string) error {
+func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 	tx, err := tt.db.Begin()
 	if err != nil {
 		return fmt.Errorf("cannot start transaction: %w", err)
 	}
-	defer rollback(tx)
+	defer completeTransaction(tx, &ret)
 
 	var count int64
 	row := tx.QueryRow(`
@@ -691,22 +682,18 @@ func (tt *TimeTracker) Continue(t time.Time, id string) error {
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("cannot commit the transaction: %w", err)
-	}
-
 	return nil
 }
 
 // Vacuum hard deletes all data which has been soft deleted before the timestamp.
 // It will also remove unused tags. At the end of the clean process, it will
 // perform a database vacuum.
-func (tt *TimeTracker) Vacuum(before time.Time) error {
+func (tt *TimeTracker) Vacuum(before time.Time) (ret error) {
 	tx, err := tt.db.Begin()
 	if err != nil {
 		return fmt.Errorf("cannot start transaction: %w", err)
 	}
-	defer rollback(tx)
+	defer completeTransaction(tx, &ret)
 
 	if _, err := tx.Exec(`
 		DELETE FROM intervals
@@ -735,10 +722,6 @@ func (tt *TimeTracker) Vacuum(before time.Time) error {
 		DELETE FROM tags
 		WHERE name IN (SELECT name FROM unreferenced_tags)`); err != nil {
 		return fmt.Errorf("cannot delete lines from tags table: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("cannot commit transaction: %w", err)
 	}
 
 	if _, err := tt.db.Exec(`VACUUM`); err != nil {

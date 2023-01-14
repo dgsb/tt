@@ -24,16 +24,18 @@ func setupTT(t *testing.T) *TimeTracker {
 	return tt
 }
 
-func TestSqliteBuild(t *testing.T) {
-	tt := setupTT(t)
-	db := tt.db
+func TestDependenciesBehaviour(t *testing.T) {
+	t.Run("sqlite3 uuid function", func(t *testing.T) {
+		tt := setupTT(t)
+		db := tt.db
 
-	row := db.QueryRow(`SELECT uuid()`)
-	require.NotNil(t, row)
+		row := db.QueryRow(`SELECT uuid()`)
+		require.NotNil(t, row)
 
-	var uuid string
-	err := row.Scan(&uuid)
-	require.NoError(t, err)
+		var uuidCol string
+		err := row.Scan(&uuidCol)
+		require.NoError(t, err)
+	})
 }
 
 func TestTimeTracker(t *testing.T) {

@@ -71,6 +71,7 @@ func (cmd *StopCmd) Run(tt *db.TimeTracker) error {
 
 type ListCmd struct {
 	At     itime.Time `help:"another starting point for the required time period instead of now"`
+	Tag    string     `help:"a tag to output filter on"`
 	Period string     `arg:"" help:"a logical description of the time period to look at" default:":day" enum:":week,:day,:month,:year"`
 }
 
@@ -111,7 +112,21 @@ func (cmd *ListCmd) Run(tt *db.TimeTracker) error {
 		return fmt.Errorf("cannot list recorded interval: %w", err)
 	}
 
-	return FlatReport(taggedIntervals, os.Stdout)
+	filteredTaggedIntervals := make([]db.TaggedInterval, 0, len(taggedIntervals))
+	if cmd.Tag == "" {
+		filteredTaggedIntervals = taggedIntervals
+	} else {
+		for _, itv := range taggedIntervals {
+			for _, t := range itv.Tags {
+				if t == cmd.Tag {
+					filteredTaggedIntervals = append(filteredTaggedIntervals, itv)
+					break
+				}
+			}
+		}
+	}
+
+	return FlatReport(filteredTaggedIntervals, os.Stdout)
 }
 
 type DeleteCmd struct {

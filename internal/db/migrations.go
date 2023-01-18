@@ -38,3 +38,19 @@ func runSqliteMigrations(db *sql.DB) error {
 		},
 		nil)
 }
+
+//go:embed migrations/postgres/01_base.sql
+var postgresBaseMigration string
+
+func runPostgresMigrations(db *sql.DB) error {
+	return darwin.Migrate(
+		darwin.NewGenericDriver(db, darwin.PostgresDialect{}),
+		[]darwin.Migration{
+			{
+				Version:     1,
+				Description: "base table definition to hold configuration variable",
+				Script:      postgresBaseMigration,
+			}, // This first migration for postgres encompass sqlite migration 1 to 3
+		},
+		nil)
+}

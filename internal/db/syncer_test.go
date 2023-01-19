@@ -1,47 +1,61 @@
 package db
 
 import (
+	"context"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
-	"github.com/dgsb/configlite"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-const testAppName = "github.com/dgsb/tt.test"
+func startPostgres(t *testing.T) (hostname string, port int) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	pg, err := testcontainers.GenericContainer(
+		ctx,
+		testcontainers.GenericContainerRequest{
+			ContainerRequest: testcontainers.ContainerRequest{
+				Image:        "postgres:15",
+				Env:          map[string]string{"POSTGRES_PASSWORD": "postgres"},
+				ExposedPorts: []string{"5432/tcp"},
+				WaitingFor:   wait.ForExposedPort(),
+			},
+			Started: true,
+		})
+	require.NoError(t, err, "cannot start postgres container")
+	require.True(t, pg.IsRunning())
+
+	t.Cleanup(func() {
+		cleanupErr := pg.Terminate(context.Background())
+		require.NoError(t, cleanupErr)
+	})
+
+	// this method returns the endpoint with the form <ip>:<port>
+	endpoint, err := pg.Endpoint(ctx, "")
+	require.NoError(t, err)
+	splitted := strings.Split(endpoint, ":")
+	require.Len(t, splitted, 2, "cannot split endpoint: %s", endpoint)
+	port, err = strconv.Atoi(splitted[1])
+	require.NoError(t, err)
+	return splitted[0], port
+}
 
 func TestSetupSyncer(t *testing.T) {
-	reg, err := configlite.New(configlite.DefaultConfigurationFile())
-	require.NoError(t, err)
-	require.NotNil(t, reg)
-
-	err = reg.RegisterApplication(testAppName)
-	require.NoError(t, err)
-
-	login, err := reg.GetConfig(testAppName, "login")
-	require.NoError(t, err)
-
-	password, err := reg.GetConfig(testAppName, "key")
-	require.NoError(t, err)
-
-	host, err := reg.GetConfig(testAppName, "hostname")
-	require.NoError(t, err)
-
-	portStr, err := reg.GetConfig(testAppName, "port")
-	require.NoError(t, err)
-
-	port, err := strconv.Atoi(portStr)
-	require.NoError(t, err)
-
-	dbname, err := reg.GetConfig(testAppName, "database")
-	require.NoError(t, err)
+	ip, port := startPostgres(t)
 
 	db, err := setupSyncerDB(SyncerConfig{
-		Login:        login,
-		Password:     password,
-		Hostname:     host,
+		Login:        "postgres",
+		Password:     "postgres",
+		Hostname:     ip,
 		Port:         port,
-		DatabaseName: dbname,
+		DatabaseName: "postgres",
 	})
 	require.NoError(t, err)
 	require.NotNil(t, db)

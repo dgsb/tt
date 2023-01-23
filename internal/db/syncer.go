@@ -43,10 +43,17 @@ type intervalRow struct {
 	ID             int
 	UUID           string
 	StartTimestamp int64
-	StopTimestamp  int64
+	StopTimestamp  sql.NullInt64
 	CreatedAt      int64
 	UpdatedAt      sql.NullInt64
 	DeletedAt      sql.NullInt64
+}
+
+type intervalTagsRow struct {
+	UUID      string
+	Tag       string
+	CreatedAt int64
+	DeletedAt sql.NullInt64
 }
 
 // getNewLocalTags return all tags created since the last sync operation
@@ -126,6 +133,41 @@ func getNewLocalIntervals(tx *sql.Tx) ([]intervalRow, error) {
 	return newLocalIntervals, nil
 }
 
+func getNewLocalIntervalTags(tx *sql.Tx) ([]intervalTagsRow, error) {
+	var newLocalIntervalTags []intervalTagsRow
+
+	rows, err := tx.Query(`
+		WITH last_sync AS (
+			SELECT max(sync_timestamp) last_timestamp
+			FROM sync_history
+		)
+		SELECT interval_uuid, tag, created_at, deleted_at
+		FROM interval_tags
+			JOIN last_sync
+				ON (last_timestamp IS NULL
+					OR created_at >= last_timestamp
+					OR deleted_at >= last_timestamp)
+		ORDER BY created_at, deleted_at`)
+	if err != nil {
+		return nil, fmt.Errorf("cannot query local interval_tags table: %w", err)
+	}
+	defer rows.Close()
+
+	for i := 0; rows.Next(); i++ {
+		var itr intervalTagsRow
+		if err := rows.Scan(&itr.UUID, &itr.Tag, &itr.CreatedAt, &itr.DeletedAt); err != nil {
+			return nil, fmt.Errorf("cannot scan local interval_tags table: %w", err)
+		}
+		fmt.Println(i, itr)
+		newLocalIntervalTags = append(newLocalIntervalTags, itr)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("cannot browse local interval_tags table: %w", err)
+	}
+
+	return newLocalIntervalTags, nil
+}
+
 // Sync performs a bidirectional synchronisation with the central database.
 func (tt *TimeTracker) Sync() (ret error) {
 	tx, err := tt.db.Begin()
@@ -146,6 +188,11 @@ func (tt *TimeTracker) Sync() (ret error) {
 		return err
 	}
 
-	fmt.Println(newLocalTags, newLocalIntervals)
+	newLocalIntervalTags, err := getNewLocalIntervalTags(tx)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(newLocalTags, newLocalIntervals, newLocalIntervalTags)
 	return nil
 }

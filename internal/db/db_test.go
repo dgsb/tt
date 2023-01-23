@@ -8,9 +8,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTT(t *testing.T) *TimeTracker {
+func setupTT(t *testing.T, file ...string) *TimeTracker {
 	t.Helper()
-	tt, err := New(":memory:")
+	tt, err := New(
+		func() string {
+			if len(file) == 0 {
+				return ":memory:"
+			}
+			return file[0]
+		}(),
+	)
+
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

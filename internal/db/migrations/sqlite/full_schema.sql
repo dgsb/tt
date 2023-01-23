@@ -30,3 +30,6 @@ CREATE TABLE IF NOT EXISTS "interval_tags" (
     FOREIGN KEY (interval_uuid) REFERENCES "intervals"(uuid),
     FOREIGN KEY (tag) REFERENCES tags(name)
 );
+CREATE TABLE sync_history (
+    sync_timestamp INTEGER PRIMARY KEY
+);

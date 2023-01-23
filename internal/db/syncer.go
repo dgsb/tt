@@ -38,3 +38,114 @@ func setupSyncerDB(cfg SyncerConfig) (*sql.DB, error) {
 
 	return db, nil
 }
+
+type intervalRow struct {
+	ID             int
+	UUID           string
+	StartTimestamp int64
+	StopTimestamp  int64
+	CreatedAt      int64
+	UpdatedAt      sql.NullInt64
+	DeletedAt      sql.NullInt64
+}
+
+// getNewLocalTags return all tags created since the last sync operation
+func getNewLocalTags(tx *sql.Tx) ([]string, error) {
+	var newLocalTags []string
+
+	rows, err := tx.Query(`
+		WITH last_sync AS (
+			SELECT max(sync_timestamp) last_timestamp
+			FROM sync_history
+		)
+		SELECT name
+		FROM tags
+		JOIN last_sync
+			ON (last_timestamp IS NULL
+				OR created_at >= last_timestamp)
+		ORDER BY created_at, name`)
+	if err != nil {
+		return nil, fmt.Errorf("cannot query local tags table: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, fmt.Errorf("cannot scan local tags row: %w", err)
+		}
+		newLocalTags = append(newLocalTags, tag)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("cannot browse local tags table: %w", err)
+	}
+
+	return newLocalTags, nil
+}
+
+func getNewLocalIntervals(tx *sql.Tx) ([]intervalRow, error) {
+	var newLocalIntervals []intervalRow
+
+	rows, err := tx.Query(`
+		WITH last_sync AS (
+			SELECT max(sync_timestamp) last_timestamp
+			FROM sync_history
+		) 
+		SELECT id, uuid, start_timestamp, stop_timestamp, created_at, updated_at, deleted_at
+		FROM intervals
+		JOIN last_sync
+			ON (last_timestamp IS NULL
+				OR created_at >= last_timestamp
+				OR updated_at >= last_timestamp
+				OR deleted_at >= last_timestamp)
+		ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("cannot query local intervals table: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var ir intervalRow
+		if err := rows.Scan(
+			&ir.ID,
+			&ir.UUID,
+			&ir.StartTimestamp,
+			&ir.StopTimestamp,
+			&ir.CreatedAt,
+			&ir.UpdatedAt,
+			&ir.DeletedAt,
+		); err != nil {
+			return nil, fmt.Errorf("cannot scan local intervals table: %w", err)
+		}
+		newLocalIntervals = append(newLocalIntervals, ir)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("cannot browse local intervals table: %w", err)
+	}
+
+	return newLocalIntervals, nil
+}
+
+// Sync performs a bidirectional synchronisation with the central database.
+func (tt *TimeTracker) Sync() (ret error) {
+	tx, err := tt.db.Begin()
+	if err != nil {
+		return fmt.Errorf("cannot start a transaction: %w", err)
+	}
+	defer completeTransaction(tx, &ret)
+
+	// get all new local data which has been created, update or deleted
+	// after the last sync timestamp
+	newLocalTags, err := getNewLocalTags(tx)
+	if err != nil {
+		return err
+	}
+
+	newLocalIntervals, err := getNewLocalIntervals(tx)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(newLocalTags, newLocalIntervals)
+	return nil
+}

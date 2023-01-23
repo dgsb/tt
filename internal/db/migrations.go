@@ -16,6 +16,9 @@ var sqliteAddTimestamp string
 //go:embed migrations/sqlite/03_add_uuid_key.sql
 var sqliteAddUUIDKey string
 
+//go:embed migrations/sqlite/04_sync_meta.sql
+var sqliteAddSyncMeta string
+
 func runSqliteMigrations(db *sql.DB) error {
 	return darwin.Migrate(
 		darwin.NewGenericDriver(db, darwin.SqliteDialect{}),
@@ -34,6 +37,11 @@ func runSqliteMigrations(db *sql.DB) error {
 				Version:     3,
 				Description: "add uuid unique key as conflict free identifier",
 				Script:      sqliteAddUUIDKey,
+			},
+			{
+				Version:     4,
+				Description: "add a synchronisation history table",
+				Script:      sqliteAddSyncMeta,
 			},
 		},
 		nil)

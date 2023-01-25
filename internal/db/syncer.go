@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/hashicorp/go-multierror"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -57,8 +58,7 @@ type intervalTagsRow struct {
 }
 
 // getNewLocalTags return all tags created since the last sync operation
-func getNewLocalTags(tx *sql.Tx) ([]string, error) {
-	var newLocalTags []string
+func getNewLocalTags(tx *sql.Tx) (newLocalTags []string, ret error) {
 
 	rows, err := tx.Query(`
 		WITH last_sync AS (
@@ -74,7 +74,11 @@ func getNewLocalTags(tx *sql.Tx) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot query local tags table: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			newLocalTags, ret = nil, multierror.Append(ret, err)
+		}
+	}()
 
 	for rows.Next() {
 		var tag string
@@ -90,8 +94,7 @@ func getNewLocalTags(tx *sql.Tx) ([]string, error) {
 	return newLocalTags, nil
 }
 
-func getNewLocalIntervals(tx *sql.Tx) ([]intervalRow, error) {
-	var newLocalIntervals []intervalRow
+func getNewLocalIntervals(tx *sql.Tx) (newLocalIntervals []intervalRow, ret error) {
 
 	rows, err := tx.Query(`
 		WITH last_sync AS (
@@ -109,7 +112,11 @@ func getNewLocalIntervals(tx *sql.Tx) ([]intervalRow, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot query local intervals table: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			newLocalIntervals, ret = nil, multierror.Append(ret, err)
+		}
+	}()
 
 	for rows.Next() {
 		var ir intervalRow
@@ -133,8 +140,7 @@ func getNewLocalIntervals(tx *sql.Tx) ([]intervalRow, error) {
 	return newLocalIntervals, nil
 }
 
-func getNewLocalIntervalTags(tx *sql.Tx) ([]intervalTagsRow, error) {
-	var newLocalIntervalTags []intervalTagsRow
+func getNewLocalIntervalTags(tx *sql.Tx) (newLocalIntervalTags []intervalTagsRow, ret error) {
 
 	rows, err := tx.Query(`
 		WITH last_sync AS (
@@ -151,7 +157,11 @@ func getNewLocalIntervalTags(tx *sql.Tx) ([]intervalTagsRow, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot query local interval_tags table: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			newLocalIntervalTags, ret = nil, multierror.Append(ret, err)
+		}
+	}()
 
 	for i := 0; rows.Next(); i++ {
 		var itr intervalTagsRow

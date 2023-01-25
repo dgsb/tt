@@ -49,6 +49,12 @@ func startPostgres(t *testing.T) (hostname string, port int) {
 	return splitted[0], port
 }
 
+func commit(t *testing.T, tx *sql.Tx) {
+	t.Helper()
+	err := tx.Commit()
+	require.NoError(t, err)
+}
+
 func TestSetupSyncer(t *testing.T) {
 	ip, port := startPostgres(t)
 
@@ -71,10 +77,11 @@ func TestSync(t *testing.T) {
 			VALUES ('test_tag1', unixepoch('now')),
 				('test_tag2', unixepoch('now'))`)
 		require.NoError(t, err)
+
 		tx, err := tt.db.Begin()
 		require.NoError(t, err)
 
-		t.Cleanup(func() { tx.Rollback() })
+		t.Cleanup(func() { commit(t, tx) })
 
 		tags, err := getNewLocalTags(tx)
 		require.NoError(t, err)
@@ -99,7 +106,7 @@ func TestSync(t *testing.T) {
 
 		tx, err := tt.db.Begin()
 		require.NoError(t, err)
-		t.Cleanup(func() { tx.Rollback() })
+		t.Cleanup(func() { commit(t, tx) })
 
 		tags, err := getNewLocalTags(tx)
 		require.NoError(t, err)
@@ -164,7 +171,7 @@ func TestSync(t *testing.T) {
 
 		tx, err := tt.db.Begin()
 		require.NoError(t, err)
-		t.Cleanup(func() { tx.Rollback() })
+		t.Cleanup(func() { commit(t, tx) })
 
 		ir, err := getNewLocalIntervals(tx)
 		require.NoError(t, err)
@@ -220,11 +227,13 @@ func TestSync(t *testing.T) {
 
 		now := time.Now()
 
-		_, err := tt.db.Exec(`
+		{
+			_, err := tt.db.Exec(`
 			INSERT INTO sync_history (sync_timestamp)
 			VALUES (?), (?)
 		`, now.Add(-5*24*time.Hour).Unix(), now.Add(-6*time.Hour).Unix())
-		require.NoError(t, err)
+			require.NoError(t, err)
+		}
 
 		for idx, data := range []intervalRow{
 			{
@@ -303,7 +312,7 @@ func TestSync(t *testing.T) {
 
 		tx, err := tt.db.Begin()
 		require.NoError(t, err)
-		t.Cleanup(func() { tx.Rollback() })
+		t.Cleanup(func() { commit(t, tx) })
 
 		ir, err := getNewLocalIntervals(tx)
 		require.NoError(t, err)
@@ -410,7 +419,8 @@ func TestSync(t *testing.T) {
 				CreatedAt: now.Add(-22 * time.Hour).Unix(),
 			},
 		} {
-			_, err := tt.db.Exec(`INSERT INTO interval_tags (interval_uuid, tag, created_at, deleted_at)
+			_, err := tt.db.Exec(`
+				INSERT INTO interval_tags (interval_uuid, tag, created_at, deleted_at)
 				VALUES (?, ?, ?, ?)`,
 				data.UUID, data.Tag, data.CreatedAt, data.DeletedAt)
 			require.NoError(t, err)
@@ -418,7 +428,7 @@ func TestSync(t *testing.T) {
 
 		tx, err := tt.db.Begin()
 		require.NoError(t, err)
-		t.Cleanup(func() { tx.Rollback() })
+		t.Cleanup(func() { commit(t, tx) })
 
 		itr, err := getNewLocalIntervalTags(tx)
 		require.NoError(t, err)
@@ -448,11 +458,13 @@ func TestSync(t *testing.T) {
 
 		now := time.Now()
 
-		_, err := tt.db.Exec(`
+		{
+			_, err := tt.db.Exec(`
 					INSERT INTO sync_history (sync_timestamp)
 					VALUES (?), (?)
 				`, now.Add(-5*24*time.Hour).Unix(), now.Add(-6*time.Hour).Unix())
-		require.NoError(t, err)
+			require.NoError(t, err)
+		}
 
 		for _, tag := range []string{"a", "b", "c"} {
 			_, err := tt.db.Exec(`INSERT INTO tags (name, created_at)
@@ -531,7 +543,8 @@ func TestSync(t *testing.T) {
 				},
 			},
 		} {
-			_, err := tt.db.Exec(`INSERT INTO interval_tags (interval_uuid, tag, created_at, deleted_at)
+			_, err := tt.db.Exec(`
+				INSERT INTO interval_tags (interval_uuid, tag, created_at, deleted_at)
 				VALUES (?, ?, ?, ?)`,
 				data.UUID, data.Tag, data.CreatedAt, data.DeletedAt)
 			require.NoError(t, err)
@@ -539,7 +552,7 @@ func TestSync(t *testing.T) {
 
 		tx, err := tt.db.Begin()
 		require.NoError(t, err)
-		t.Cleanup(func() { tx.Rollback() })
+		t.Cleanup(func() { commit(t, tx) })
 
 		itr, err := getNewLocalIntervalTags(tx)
 		require.NoError(t, err)

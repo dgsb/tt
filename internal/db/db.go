@@ -99,6 +99,8 @@ func (tt *TimeTracker) Close() error {
 func (tt *TimeTracker) SanityCheck() error {
 	err := multierror.Append(nil, tt.checkNoOverlap())
 	err = multierror.Append(err, tt.intervalTagsUnicity())
+	err = multierror.Append(err, tt.checkIntervalsCreatedAt())
+	err = multierror.Append(err, tt.checkIntervalsUpdatedAt())
 	return err.ErrorOrNil()
 }
 
@@ -200,6 +202,67 @@ func (tt *TimeTracker) checkNoOverlap() (ret error) {
 	}
 
 	return nil
+}
+
+func (tt *TimeTracker) checkIntervalsCreatedAt() (ret error) {
+	rows, err := tt.db.Query(`SELECT id FROM intervals WHERE created_at IS NULL`)
+	if err != nil {
+		return fmt.Errorf("cannot query intervals table: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			ret = multierror.Append(ret, err)
+		}
+	}()
+	var merr *multierror.Error
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("cannot scan table intervals: %w", err)
+		}
+		merr = multierror.Append(merr,
+			fmt.Errorf("%w: interval created_at is null: %d", ErrInvalidInterval, id))
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("cannot browse intervals table: %w", err)
+	}
+	return merr.ErrorOrNil()
+}
+
+func (tt *TimeTracker) checkIntervalsUpdatedAt() (ret error) {
+	rows, err := tt.db.Query(`
+		SELECT id, 'updated before created' as type
+		FROM intervals
+		WHERE updated_at IS NOT NULL AND created_at > updated_at
+		UNION
+		SELECT id, 'unexpected updated null' as type
+		FROM intervals
+		WHERE updated_at IS NULL AND stop_timestamp IS NOT NULL`)
+	if err != nil {
+		return fmt.Errorf("cannot query the database: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			ret = multierror.Append(ret, err)
+		}
+	}()
+
+	var merr *multierror.Error
+	for rows.Next() {
+		var (
+			id      int
+			errType string
+		)
+		if err := rows.Scan(&id, &errType); err != nil {
+			return fmt.Errorf("cannot scan intervals table: %w", err)
+		}
+		merr = multierror.Append(merr, fmt.Errorf("%w: %s %d", ErrInvalidInterval, errType, id))
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("cannot browse intervals table: %w", err)
+	}
+
+	return merr.ErrorOrNil()
 }
 
 // Start registers a new opened interval with a set of tags. This method ensures

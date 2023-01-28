@@ -121,11 +121,7 @@ func TestSync(t *testing.T) {
 		for idx, data := range []intervalRow{
 			{
 				StartTimestamp: now.Add(-6 * time.Hour).Unix(),
-				StopTimestamp: sql.NullInt64{
-					Int64: now.Add(-5 * time.Hour).Unix(),
-					Valid: true,
-				},
-				CreatedAt: now.Add(-3 * time.Hour).Unix(),
+				CreatedAt:      now.Add(-3 * time.Hour).Unix(),
 			},
 			{
 				StartTimestamp: now.Add(-4 * time.Hour).Unix(),
@@ -180,11 +176,7 @@ func TestSync(t *testing.T) {
 				ID:             1,
 				UUID:           "1",
 				StartTimestamp: now.Add(-6 * time.Hour).Unix(),
-				StopTimestamp: sql.NullInt64{
-					Int64: now.Add(-5 * time.Hour).Unix(),
-					Valid: true,
-				},
-				CreatedAt: now.Add(-3 * time.Hour).Unix(),
+				CreatedAt:      now.Add(-3 * time.Hour).Unix(),
 			},
 			{
 				ID:             2,
@@ -238,19 +230,11 @@ func TestSync(t *testing.T) {
 		for idx, data := range []intervalRow{
 			{
 				StartTimestamp: now.Add(-6 * time.Hour).Unix(),
-				StopTimestamp: sql.NullInt64{
-					Int64: now.Add(-5 * time.Hour).Unix(),
-					Valid: true,
-				},
-				CreatedAt: now.Add(-3 * time.Hour).Unix(),
+				CreatedAt:      now.Add(-3 * time.Hour).Unix(),
 			},
 			{
 				StartTimestamp: now.Add(-7 * time.Hour).Unix(),
-				StopTimestamp: sql.NullInt64{
-					Int64: now.Add(-6 * time.Hour).Unix(),
-					Valid: true,
-				},
-				CreatedAt: now.Add(-7 * time.Hour).Unix(),
+				CreatedAt:      now.Add(-7 * time.Hour).Unix(),
 			},
 			{
 				StartTimestamp: now.Add(-8 * time.Hour).Unix(),
@@ -321,11 +305,7 @@ func TestSync(t *testing.T) {
 				ID:             1,
 				UUID:           "1",
 				StartTimestamp: now.Add(-6 * time.Hour).Unix(),
-				StopTimestamp: sql.NullInt64{
-					Int64: now.Add(-5 * time.Hour).Unix(),
-					Valid: true,
-				},
-				CreatedAt: now.Add(-3 * time.Hour).Unix(),
+				CreatedAt:      now.Add(-3 * time.Hour).Unix(),
 			},
 			{
 				ID:             3,
@@ -384,7 +364,7 @@ func TestSync(t *testing.T) {
 				},
 				CreatedAt: now.Add(-24 * time.Hour).Unix(),
 				UpdatedAt: sql.NullInt64{
-					Int64: now.Add(-24 * time.Hour).Unix(),
+					Int64: now.Add(-23 * time.Hour).Unix(),
 					Valid: true,
 				},
 			},
@@ -432,7 +412,6 @@ func TestSync(t *testing.T) {
 
 		itr, err := getNewLocalIntervalTags(tx)
 		require.NoError(t, err)
-		fmt.Println(itr)
 		require.Equal(t, []intervalTagsRow{
 			{
 				UUID:      "1",
@@ -556,7 +535,6 @@ func TestSync(t *testing.T) {
 
 		itr, err := getNewLocalIntervalTags(tx)
 		require.NoError(t, err)
-		fmt.Println(itr)
 		require.Equal(t, []intervalTagsRow{
 			{
 				UUID:      "1",

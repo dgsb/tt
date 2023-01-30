@@ -26,7 +26,7 @@ func setupTT(t *testing.T, file ...string) *TimeTracker {
 		require.NoError(t, err)
 	})
 	t.Cleanup(func() {
-		err := tt.SanityCheck()
+		err := NewSanity(tt.db).Check()
 		require.NoError(t, err, "sanity check failed")
 	})
 	return tt

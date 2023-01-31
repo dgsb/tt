@@ -12,8 +12,10 @@ import (
 	"github.com/mattn/go-sqlite3"
 )
 
+const customSqliteDriverName = "sqlite3_tt"
+
 func init() {
-	sql.Register("sqlite3_tt", &sqlite3.SQLiteDriver{
+	sql.Register(customSqliteDriverName, &sqlite3.SQLiteDriver{
 		ConnectHook: func(conn *sqlite3.SQLiteConn) error {
 			return conn.RegisterFunc("uuid", func() (string, error) {
 				id, err := uuid.NewRandom()
@@ -38,7 +40,7 @@ func completeTransaction(
 }
 
 func setupDB(databaseName string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite3_tt", databaseName)
+	db, err := sql.Open(customSqliteDriverName, databaseName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open database %s: %w", databaseName, err)
 	}

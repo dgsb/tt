@@ -6,16 +6,20 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/jmoiron/sqlx"
 )
 
 // Sanity object gathers all methods which implement the logic
 // to check the data sanity in the database
 type Sanity struct {
-	db *sql.DB
+	db *sqlx.DB
 }
 
 func NewSanity(db *sql.DB) *Sanity {
-	return &Sanity{db: db}
+	// We use default sqlite3 driver name instead of our custom one here
+	// because this is supposed to be only used in sqlx layer to
+	// identify query placeholder charaters depending on the database type.
+	return &Sanity{db: sqlx.NewDb(db, "sqlite3")}
 }
 
 // Check performs a full database scan to validate data.
@@ -30,33 +34,38 @@ func (s *Sanity) Check() error {
 	return err.ErrorOrNil()
 }
 
-/*func getRows[T any](db *sql.DB, query string) (t []T, ret error) {
-	rows, err := db.Query(query)
+func getRows[T any](db *sqlx.DB, query string) (t []T, ret error) {
+	rows, err := db.Queryx(query)
 	if err != nil {
-		return fmt.Errorf("cannot query the database: %w", err)
+		return nil, fmt.Errorf("cannot query the database: %w", err)
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
-			ret = multierror.Append(ret, err)
+			t, ret = nil, multierror.Append(ret, err)
 		}
 	}()
 
 	for rows.Next() {
-		if err := scan(rows); err != nil {
-			return err
+		var singleT T
+		if err := rows.StructScan(&singleT); err != nil {
+			return nil, err
 		}
+		t = append(t, singleT)
 	}
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("cannot browse rows: %w", err)
+		return nil, fmt.Errorf("cannot browse rows: %w", err)
 	}
-	return nil
+	return
 }
-*/
 
 // intervalTagsUnicity checks the database contains a single row
 // for a interval_id, tag tuple with deleted_at being null.
 func (s *Sanity) intervalTagsUnicity() (ret error) {
-	rows, err := s.db.Query(`
+	type sanityRow struct {
+		Interval int    `db:"interval_uuid"`
+		Tag      string `db:"tag"`
+	}
+	rows, err := getRows[sanityRow](s.db, `
 		SELECT interval_uuid, tag
 		FROM interval_tags
 		WHERE deleted_at IS NULL
@@ -65,29 +74,12 @@ func (s *Sanity) intervalTagsUnicity() (ret error) {
 	if err != nil {
 		return fmt.Errorf("cannot query the database: %w", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			ret = multierror.Append(ret, err)
-		}
-	}()
 
 	var merr *multierror.Error
 
-	for rows.Next() {
-		var (
-			interval int
-			tag      string
-		)
-
-		if err := rows.Scan(&interval, &tag); err != nil {
-			return fmt.Errorf("cannot scan the database: %w", err)
-		}
-
+	for _, r := range rows {
 		merr = multierror.Append(
-			merr, fmt.Errorf("%w (%d,%s)", ErrIntervalTagsUnicity, interval, tag))
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("cannot browse interval_tags table: %w", err)
+			merr, fmt.Errorf("%w (%d,%s)", ErrIntervalTagsUnicity, r.Interval, r.Tag))
 	}
 
 	return merr.ErrorOrNil()
@@ -154,32 +146,27 @@ func (s *Sanity) checkNoOverlap() (ret error) {
 }
 
 func (s *Sanity) checkIntervalsCreatedAt() (ret error) {
-	rows, err := s.db.Query(`SELECT id FROM intervals WHERE created_at IS NULL`)
+	type sanityRow struct {
+		Id int
+	}
+	rows, err := getRows[sanityRow](s.db, `SELECT id FROM intervals WHERE created_at IS NULL`)
 	if err != nil {
 		return fmt.Errorf("cannot query intervals table: %w", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			ret = multierror.Append(ret, err)
-		}
-	}()
 	var merr *multierror.Error
-	for rows.Next() {
-		var id int
-		if err := rows.Scan(&id); err != nil {
-			return fmt.Errorf("cannot scan table intervals: %w", err)
-		}
+	for _, r := range rows {
 		merr = multierror.Append(merr,
-			fmt.Errorf("%w: interval created_at is null: %d", ErrInvalidInterval, id))
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("cannot browse intervals table: %w", err)
+			fmt.Errorf("%w: interval created_at is null: %d", ErrInvalidInterval, r.Id))
 	}
 	return merr.ErrorOrNil()
 }
 
 func (s *Sanity) checkIntervalsUpdatedAt() (ret error) {
-	rows, err := s.db.Query(`
+	type sanityRow struct {
+		Id   int
+		Type string
+	}
+	rows, err := getRows[sanityRow](s.db, `
 		SELECT id, 'updated before created' as type
 		FROM intervals
 		WHERE updated_at IS NOT NULL AND created_at > updated_at
@@ -190,25 +177,10 @@ func (s *Sanity) checkIntervalsUpdatedAt() (ret error) {
 	if err != nil {
 		return fmt.Errorf("cannot query the database: %w", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			ret = multierror.Append(ret, err)
-		}
-	}()
 
 	var merr *multierror.Error
-	for rows.Next() {
-		var (
-			id      int
-			errType string
-		)
-		if err := rows.Scan(&id, &errType); err != nil {
-			return fmt.Errorf("cannot scan intervals table: %w", err)
-		}
-		merr = multierror.Append(merr, fmt.Errorf("%w: %s %d", ErrInvalidInterval, errType, id))
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("cannot browse intervals table: %w", err)
+	for _, r := range rows {
+		merr = multierror.Append(merr, fmt.Errorf("%w: %s %d", ErrInvalidInterval, r.Type, r.Id))
 	}
 
 	return merr.ErrorOrNil()

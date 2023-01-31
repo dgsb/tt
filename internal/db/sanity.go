@@ -173,7 +173,11 @@ func (s *Sanity) checkIntervalsUpdatedAt() (ret error) {
 		UNION
 		SELECT id, 'unexpected updated null' as type
 		FROM intervals
-		WHERE updated_at IS NULL AND stop_timestamp IS NOT NULL`)
+		WHERE updated_at IS NULL AND stop_timestamp IS NOT NULL
+		UNION
+		SELECT id, 'unexpected updated not null' as type
+		FROM intervals
+		WHERE updated_at IS NOT NULL and stop_timestamp IS NULL`)
 	if err != nil {
 		return fmt.Errorf("cannot query the database: %w", err)
 	}

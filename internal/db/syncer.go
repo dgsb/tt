@@ -56,7 +56,7 @@ type intervalStopRow struct {
 type intervalTombstoneRow struct {
 	UUID      string
 	StartUUID string
-	CreateAt  string
+	CreatedAt int64
 }
 
 type intervalTagsRow struct {
@@ -105,6 +105,8 @@ func getNewLocalTags(tx *sql.Tx) (newLocalTags []string, ret error) {
 
 func getNewLocalIntervalStart(tx *sql.Tx) (newLocalIntervals []intervalStartRow, ret error) {
 
+	newLocalIntervals = []intervalStartRow{}
+
 	rows, err := tx.Query(`
 		WITH last_sync AS (
 			SELECT max(sync_timestamp) last_timestamp
@@ -143,6 +145,9 @@ func getNewLocalIntervalStart(tx *sql.Tx) (newLocalIntervals []intervalStartRow,
 }
 
 func getNewLocalIntervalStop(tx *sql.Tx) (newLocalIntervalStop []intervalStopRow, ret error) {
+
+	newLocalIntervalStop = []intervalStopRow{}
+
 	rows, err := tx.Query(`
 		WITH last_sync AS (
 			SELECT max(sync_timestamp) last_timestamp
@@ -179,6 +184,44 @@ func getNewLocalIntervalStop(tx *sql.Tx) (newLocalIntervalStop []intervalStopRow
 	}
 
 	return
+}
+
+func getNewLocalIntervalTombstone(tx *sql.Tx) (itr []intervalTombstoneRow, ret error) {
+
+	rows, err := tx.Query(`
+		WITH last_sync AS (
+			SELECT max(sync_timestamp) last_timestamp
+			FROM sync_history
+		)
+		SELECT uuid, start_uuid, created_at
+		FROM interval_tombstone
+			JOIN last_sync
+				ON (last_timestamp IS NULL OR created_at >= last_timestamp)
+		ORDER BY created_at`)
+	if err != nil {
+		return nil, fmt.Errorf("cannot query interval_tombstone table: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			itr, ret = nil, multierror.Append(ret, err)
+		}
+	}()
+
+	for rows.Next() {
+		var r intervalTombstoneRow
+		if err := rows.Scan(
+			&r.UUID,
+			&r.StartUUID,
+			&r.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("cannot scan intervalTombstone row: %w", err)
+		}
+		itr = append(itr, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("cannot browse interval_tombstone table: %w", err)
+	}
+	return itr, nil
 }
 
 func getNewLocalIntervalTags(tx *sql.Tx) (newLocalIntervalTags []intervalTagsRow, ret error) {

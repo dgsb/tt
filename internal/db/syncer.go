@@ -40,14 +40,23 @@ func setupSyncerDB(cfg SyncerConfig) (*sql.DB, error) {
 	return db, nil
 }
 
-type intervalRow struct {
-	ID             int
+type intervalStartRow struct {
 	UUID           string
 	StartTimestamp int64
-	StopTimestamp  sql.NullInt64
 	CreatedAt      int64
-	UpdatedAt      sql.NullInt64
-	DeletedAt      sql.NullInt64
+}
+
+type intervalStopRow struct {
+	UUID          string
+	StartUUID     string
+	StopTimestamp int64
+	CreatedAt     int64
+}
+
+type intervalTombstoneRow struct {
+	UUID      string
+	StartUUID string
+	CreateAt  string
 }
 
 type intervalTagsRow struct {
@@ -94,23 +103,20 @@ func getNewLocalTags(tx *sql.Tx) (newLocalTags []string, ret error) {
 	return newLocalTags, nil
 }
 
-func getNewLocalIntervals(tx *sql.Tx) (newLocalIntervals []intervalRow, ret error) {
+func getNewLocalIntervalStart(tx *sql.Tx) (newLocalIntervals []intervalStartRow, ret error) {
 
 	rows, err := tx.Query(`
 		WITH last_sync AS (
 			SELECT max(sync_timestamp) last_timestamp
 			FROM sync_history
 		) 
-		SELECT id, uuid, start_timestamp, stop_timestamp, created_at, updated_at, deleted_at
-		FROM intervals
-		JOIN last_sync
-			ON (last_timestamp IS NULL
-				OR created_at >= last_timestamp
-				OR updated_at >= last_timestamp
-				OR deleted_at >= last_timestamp)
+		SELECT uuid, start_timestamp, created_at
+		FROM interval_start
+			JOIN last_sync
+				ON (last_timestamp IS NULL OR created_at >= last_timestamp)
 		ORDER BY id`)
 	if err != nil {
-		return nil, fmt.Errorf("cannot query local intervals table: %w", err)
+		return nil, fmt.Errorf("cannot query local interval start table: %w", err)
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
@@ -119,15 +125,11 @@ func getNewLocalIntervals(tx *sql.Tx) (newLocalIntervals []intervalRow, ret erro
 	}()
 
 	for rows.Next() {
-		var ir intervalRow
+		var ir intervalStartRow
 		if err := rows.Scan(
-			&ir.ID,
 			&ir.UUID,
 			&ir.StartTimestamp,
-			&ir.StopTimestamp,
 			&ir.CreatedAt,
-			&ir.UpdatedAt,
-			&ir.DeletedAt,
 		); err != nil {
 			return nil, fmt.Errorf("cannot scan local intervals table: %w", err)
 		}
@@ -138,6 +140,45 @@ func getNewLocalIntervals(tx *sql.Tx) (newLocalIntervals []intervalRow, ret erro
 	}
 
 	return newLocalIntervals, nil
+}
+
+func getNewLocalIntervalStop(tx *sql.Tx) (newLocalIntervalStop []intervalStopRow, ret error) {
+	rows, err := tx.Query(`
+		WITH last_sync AS (
+			SELECT max(sync_timestamp) last_timestamp
+			FROM sync_history
+		)
+		SELECT uuid, start_uuid, stop_timestamp, created_at
+		FROM interval_stop
+			JOIN last_sync
+				ON (last_timestamp IS NULL OR created_at >= last_timestamp)
+		ORDER BY created_at`)
+	if err != nil {
+		return nil, fmt.Errorf("cannot query local interval stop table: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			newLocalIntervalStop, ret = nil, multierror.Append(ret, err)
+		}
+	}()
+
+	for rows.Next() {
+		var r intervalStopRow
+		if err := rows.Scan(
+			&r.UUID,
+			&r.StartUUID,
+			&r.StopTimestamp,
+			&r.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("cannot scan a row: %w", err)
+		}
+		newLocalIntervalStop = append(newLocalIntervalStop, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("cannot browse interval stop table: %w", err)
+	}
+
+	return
 }
 
 func getNewLocalIntervalTags(tx *sql.Tx) (newLocalIntervalTags []intervalTagsRow, ret error) {
@@ -179,7 +220,13 @@ func getNewLocalIntervalTags(tx *sql.Tx) (newLocalIntervalTags []intervalTagsRow
 }
 
 // Sync performs a bidirectional synchronisation with the central database.
-func (tt *TimeTracker) Sync() (ret error) {
+func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
+	syncDB, err := setupSyncerDB(cfg)
+	if err != nil {
+		return fmt.Errorf("cannot open syncer database: %w", err)
+	}
+	defer func() { _ = syncDB.Close() }()
+
 	tx, err := tt.db.Begin()
 	if err != nil {
 		return fmt.Errorf("cannot start a transaction: %w", err)
@@ -193,7 +240,12 @@ func (tt *TimeTracker) Sync() (ret error) {
 		return err
 	}
 
-	newLocalIntervals, err := getNewLocalIntervals(tx)
+	newLocalIntervalStart, err := getNewLocalIntervalStart(tx)
+	if err != nil {
+		return err
+	}
+
+	newLocalIntervalStop, err := getNewLocalIntervalStop(tx)
 	if err != nil {
 		return err
 	}
@@ -203,6 +255,12 @@ func (tt *TimeTracker) Sync() (ret error) {
 		return err
 	}
 
-	fmt.Println(newLocalTags, newLocalIntervals, newLocalIntervalTags)
+	fmt.Println(newLocalTags, newLocalIntervalStart, newLocalIntervalStop, newLocalIntervalTags)
+
+	syncTx, err := syncDB.Begin()
+	if err != nil {
+		return fmt.Errorf("cannot start transaction on syncer db: %w", err)
+	}
+	defer completeTransaction(syncTx, &ret)
 	return nil
 }

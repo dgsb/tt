@@ -29,7 +29,6 @@ func NewSanity(db *sql.DB) *Sanity {
 func (s *Sanity) Check() error {
 	err := multierror.Append(nil, s.checkNoOverlap())
 	err = multierror.Append(err, s.intervalTagsUnicity())
-	err = multierror.Append(err, s.checkIntervalsCreatedAt())
 	err = multierror.Append(err, s.checkIntervalsUpdatedAt())
 	return err.ErrorOrNil()
 }
@@ -66,10 +65,12 @@ func (s *Sanity) intervalTagsUnicity() (ret error) {
 		Tag      string `db:"tag"`
 	}
 	rows, err := getRows[sanityRow](s.db, `
-		SELECT interval_uuid, tag
+		SELECT interval_start_uuid, tag
 		FROM interval_tags
-		WHERE deleted_at IS NULL
-		GROUP BY interval_uuid, tag
+			LEFT JOIN interval_tags_tombstone
+				ON interval_tags.uuid = interval_tags_tombstone.interval_tag_uuid
+		WHERE interval_tags_tombstone.uuid IS NULL
+		GROUP BY interval_start_uuid, tag
 		HAVING count(1) > 1`)
 	if err != nil {
 		return fmt.Errorf("cannot query the database: %w", err)
@@ -90,9 +91,10 @@ func (s *Sanity) intervalTagsUnicity() (ret error) {
 func (s *Sanity) checkNoOverlap() (ret error) {
 	rows, err := s.db.Query(`
 		SELECT id, start_timestamp, stop_timestamp
-		FROM intervals
-		WHERE stop_timestamp IS NOT NULL
-			AND deleted_at IS NULL
+		FROM interval_start
+			JOIN interval_stop ON interval_start.uuid = interval_stop.start_uuid
+			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
+		WHERE interval_tombstone.uuid IS NULL
 		ORDER BY start_timestamp`)
 	if err != nil {
 		return fmt.Errorf("cannot query the database: %w", err)
@@ -145,22 +147,6 @@ func (s *Sanity) checkNoOverlap() (ret error) {
 	return nil
 }
 
-func (s *Sanity) checkIntervalsCreatedAt() (ret error) {
-	type sanityRow struct {
-		Id int
-	}
-	rows, err := getRows[sanityRow](s.db, `SELECT id FROM intervals WHERE created_at IS NULL`)
-	if err != nil {
-		return fmt.Errorf("cannot query intervals table: %w", err)
-	}
-	var merr *multierror.Error
-	for _, r := range rows {
-		merr = multierror.Append(merr,
-			fmt.Errorf("%w: interval created_at is null: %d", ErrInvalidInterval, r.Id))
-	}
-	return merr.ErrorOrNil()
-}
-
 func (s *Sanity) checkIntervalsUpdatedAt() (ret error) {
 	type sanityRow struct {
 		Id   int
@@ -168,16 +154,9 @@ func (s *Sanity) checkIntervalsUpdatedAt() (ret error) {
 	}
 	rows, err := getRows[sanityRow](s.db, `
 		SELECT id, 'updated before created' as type
-		FROM intervals
-		WHERE updated_at IS NOT NULL AND created_at > updated_at
-		UNION
-		SELECT id, 'unexpected updated null' as type
-		FROM intervals
-		WHERE updated_at IS NULL AND stop_timestamp IS NOT NULL
-		UNION
-		SELECT id, 'unexpected updated not null' as type
-		FROM intervals
-		WHERE updated_at IS NOT NULL and stop_timestamp IS NULL`)
+		FROM interval_start
+			JOIN interval_stop ON interval_start.start_timestamp = interval_stop.uuid
+		WHERE interval_start.created_at > interval_stop.created_at`)
 	if err != nil {
 		return fmt.Errorf("cannot query the database: %w", err)
 	}

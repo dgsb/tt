@@ -108,9 +108,11 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	var count int
 	row := tx.QueryRow(`
 		SELECT count(1)
-		FROM intervals
-		WHERE stop_timestamp IS NULL
-			AND deleted_at IS NULL`)
+		FROM interval_start
+			LEFT JOIN interval_stop ON interval_start.uuid = interval_stop.start_uuid
+			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
+		WHERE interval_stop.uuid IS NULL
+			AND interval_tombstone.uuid IS NULL`)
 	if err := row.Scan(&count); err != nil {
 		return fmt.Errorf("cannot count opened intervals: %w", err)
 	}
@@ -121,9 +123,11 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	// Check the requested start time doesn't fall in a known closed interval
 	row = tx.QueryRow(`
 		SELECT count(1)
-		FROM intervals
+		FROM interval_start
+			INNER JOIN interval_stop ON interval_start.uuid = interval_stop.start_uuid
+			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
 		WHERE start_timestamp <= ?1 AND stop_timestamp > ?1
-			AND deleted_at IS NULL`, t.Unix())
+			AND interval_tombstone.uuid IS NULL`, t.Unix())
 	if err := row.Scan(&count); err != nil {
 		return fmt.Errorf("cannot count overlapping closed interval: %w", err)
 	}
@@ -148,8 +152,8 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	// Insert the new interval
 	var newUUID string
 	row = tx.QueryRow(`
-		INSERT INTO intervals (uuid, start_timestamp, stop_timestamp, created_at)
-		VALUES(uuid(), ?, NULL, unixepoch('now'))
+		INSERT INTO interval_start (uuid, start_timestamp, created_at)
+		VALUES(uuid(), ?, unixepoch('now'))
 		RETURNING (uuid)
 	`, t.Unix())
 	if err := row.Scan(&newUUID); err != nil {
@@ -157,10 +161,11 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	}
 
 	// Link the new interval with its associated tags
+	// XXX add unit test there
 	for _, tag := range tags {
 		_, err := tx.Exec(`
-			INSERT INTO interval_tags (interval_uuid, tag, created_at)
-			VALUES (?1, ?2, unixepoch('now'))
+			INSERT INTO interval_tags (uuid, interval_start_uuid, tag, created_at)
+			VALUES (uuid(), ?1, ?2, unixepoch('now'))
 		`, newUUID, tag)
 		if err != nil {
 			return fmt.Errorf("cannot link new interval with tag %s: %w", tag, err)
@@ -180,13 +185,18 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 
 	// Check we have a single running timestamp
 	// and that the required stop timestamp is actually after the start timestamp
-	var count, startTimestampUnix int64
+	var (
+		intervalUUID              string
+		count, startTimestampUnix int64
+	)
 	row := tx.QueryRow(`
-		SELECT start_timestamp, count(1) over()
-		FROM intervals
-		WHERE stop_timestamp IS NULL AND deleted_at IS NULL
+		SELECT interval_start.uuid, start_timestamp, count(1) over()
+		FROM interval_start
+			LEFT JOIN interval_stop ON interval_start.uuid = interval_stop.start_uuid
+			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
+		WHERE stop_timestamp IS NULL AND interval_tombstone.created_at IS NULL
 		LIMIT 1`)
-	if err = row.Scan(&startTimestampUnix, &count); err != nil {
+	if err = row.Scan(&intervalUUID, &startTimestampUnix, &count); err != nil {
 		return fmt.Errorf("cannot count opened interval: %w", err)
 	}
 	if count > 1 {
@@ -200,10 +210,11 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 	// closed interval.
 	row = tx.QueryRow(`
 		SELECT count(1)
-		FROM intervals
+		FROM interval_start
+			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
 		WHERE start_timestamp > ?
 			AND start_timestamp < ?
-			AND deleted_at IS NULL`, startTimestampUnix, t.Unix())
+			AND interval_tombstone.uuid IS NULL`, startTimestampUnix, t.Unix())
 	if err = row.Scan(&count); err != nil {
 		return fmt.Errorf("cannot count enclosed interval: %w", err)
 	}
@@ -213,25 +224,25 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 
 	// preconditions ok. Close the currently opened interval.
 	_, err = tx.Exec(`
-		UPDATE intervals
-		SET
-			stop_timestamp = ?,
-			updated_at = unixepoch('now')
-		WHERE stop_timestamp IS NULL
-			AND deleted_at IS NULL`, t.Unix())
+		INSERT INTO interval_stop (uuid, start_uuid, stop_timestamp, created_at)
+		VALUES (uuid(), ?, ?, unixepoch('now'))`,
+		intervalUUID, t.Unix())
 	if err != nil {
-		return fmt.Errorf("cannot update opened interval: %w", err)
+		return fmt.Errorf("cannot insert interval tombstone: %w", err)
 	}
 
 	return nil
 }
 
+// XXX add unit test
 func (tt *TimeTracker) getIntervalTags(intervalUUID string) (tags []string, retErr error) {
 	rows, err := tt.db.Query(`
 		SELECT tag
 		FROM interval_tags
-		WHERE interval_uuid = ?
-			AND deleted_at IS NULL`, intervalUUID)
+			LEFT JOIN interval_tags_tombstone
+				ON interval_tags.uuid = interval_tags_tombstone.interval_tag_uuid
+		WHERE interval_start_uuid = ?
+			AND interval_tags_tombstone.uuid IS NULL`, intervalUUID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot retrieve associated tags: %w", err)
 	}
@@ -258,13 +269,16 @@ func (tt *TimeTracker) getIntervalTags(intervalUUID string) (tags []string, retE
 
 // List returns a list of interval whose start timestamp is equal
 // or after the timestamp given as parameter.
+// XXX add unit test
 func (tt *TimeTracker) List(since, until time.Time) (retTi []TaggedInterval, retErr error) {
 	rows, err := tt.db.Query(`
-		SELECT count(1) over(), id, uuid, start_timestamp, stop_timestamp
-		FROM intervals
+		SELECT id, interval_start.uuid, start_timestamp, stop_timestamp
+		FROM interval_start
+			LEFT JOIN interval_stop ON interval_start.uuid = interval_stop.start_uuid
+			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
 		WHERE start_timestamp >= ?
 			AND start_timestamp < ?
-			AND deleted_at IS NULL
+			AND interval_tombstone.uuid IS NULL
 		ORDER BY start_timestamp`,
 		since.Unix(), until.Unix())
 	if err != nil {
@@ -277,17 +291,15 @@ func (tt *TimeTracker) List(since, until time.Time) (retTi []TaggedInterval, ret
 		}
 	}()
 
-	var intervals []TaggedInterval
+	intervals := make([]TaggedInterval, 0, 126)
 	for rows.Next() {
 		var (
-			count              int64
 			unixStartTimestamp int64
 			unixStopTimestamp  sql.NullInt64
 			interval           TaggedInterval
 		)
 
 		if err := rows.Scan(
-			&count,
 			&interval.Interval.ID,
 			&interval.Interval.UUID,
 			&unixStartTimestamp,
@@ -298,10 +310,6 @@ func (tt *TimeTracker) List(since, until time.Time) (retTi []TaggedInterval, ret
 		interval.Interval.StartTimestamp = time.Unix(unixStartTimestamp, 0)
 		if unixStopTimestamp.Valid {
 			interval.Interval.StopTimestamp = time.Unix(unixStopTimestamp.Int64, 0)
-		}
-
-		if intervals == nil {
-			intervals = make([]TaggedInterval, 0, count)
 		}
 
 		intervals = append(intervals, interval)
@@ -329,22 +337,17 @@ func (tt *TimeTracker) Delete(id string) (ret error) {
 	}
 	defer completeTransaction(tx, &ret)
 
-	_, err = tx.Exec(`UPDATE intervals SET deleted_at = ? WHERE id = ?`, time.Now().Unix(), id)
+	_, err = tx.Exec(`
+		INSERT OR IGNORE INTO interval_tombstone (uuid, start_uuid, created_at)
+		SELECT uuid(), (SELECT uuid FROM interval_start WHERE id = ?), unixepoch('now')`, id)
 	if err != nil {
 		return fmt.Errorf("cannot delete interval %s: %w", id, err)
-	}
-	_, err = tx.Exec(`
-		UPDATE interval_tags
-		SET deleted_at = ?
-		WHERE interval_uuid = (SELECT uuid FROM intervals WHERE id = ? LIMIT 1)
-			AND deleted_at IS NULL`, time.Now().Unix(), id)
-	if err != nil {
-		return fmt.Errorf("cannot delete interval_tags %s: %w", id, err)
 	}
 
 	return nil
 }
 
+// XXX add unit test
 func (tt *TimeTracker) Tag(id string, tags []string) (ret error) {
 	tx, err := tt.db.Begin()
 	if err != nil {
@@ -352,7 +355,12 @@ func (tt *TimeTracker) Tag(id string, tags []string) (ret error) {
 	}
 	defer completeTransaction(tx, &ret)
 
-	row := tx.QueryRow(`SELECT uuid FROM intervals WHERE id = ?`, id)
+	row := tx.QueryRow(`
+		SELECT interval_start.uuid
+		FROM interval_start
+			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
+		WHERE interval_tombstone.uuid IS NULL
+			AND interval_start.id = ?`, id)
 	var intervalUUID string
 	if err := row.Scan(&intervalUUID); err != nil {
 		return fmt.Errorf("cannot retrieve uuid from database scan: %w", err)
@@ -364,7 +372,11 @@ func (tt *TimeTracker) Tag(id string, tags []string) (ret error) {
 		row := tx.QueryRow(`
 			SELECT count(1)
 			FROM interval_tags
-			WHERE interval_uuid = ? AND tag = ? AND deleted_at IS NULL`, intervalUUID, tag)
+				LEFT JOIN interval_tags_tombstone
+					ON interval_tags.uuid = interval_tags_tombstone.interval_tag_uuid
+			WHERE interval_start_uuid = ?
+				AND tag = ?
+				AND interval_tags_tombstone.uuid IS NULL`, intervalUUID, tag)
 		var count int
 		if err := row.Scan(&count); err != nil {
 			return fmt.Errorf("cannot scan database: %w", err)
@@ -382,8 +394,8 @@ func (tt *TimeTracker) Tag(id string, tags []string) (ret error) {
 		}
 
 		if _, err := tx.Exec(`
-			INSERT INTO interval_tags (interval_uuid, tag)
-			VALUES (?, ?)
+			INSERT INTO interval_tags (uuid, interval_start_uuid, tag, created_at)
+			VALUES (uuid(), ?, ?, unixepoch('now'))
 			ON CONFLICT DO NOTHING`, intervalUUID, tag); err != nil {
 			return fmt.Errorf("cannot tag interval %s with %s: %w", id, tag, err)
 		}
@@ -392,6 +404,7 @@ func (tt *TimeTracker) Tag(id string, tags []string) (ret error) {
 	return nil
 }
 
+// XXX add unit tests
 func (tt *TimeTracker) Untag(id string, tags []string) (ret error) {
 	tx, err := tt.db.Begin()
 	if err != nil {
@@ -401,10 +414,18 @@ func (tt *TimeTracker) Untag(id string, tags []string) (ret error) {
 
 	for _, tag := range tags {
 		if _, err := tx.Exec(`
-			UPDATE interval_tags
-			SET deleted_at = unixepoch('now')
-			WHERE interval_uuid = (SELECT uuid FROM intervals WHERE id = ?)
-				AND tag = ? AND deleted_at IS NULL
+			WITH to_delete AS (
+				SELECT interval_tags.uuid
+				FROM interval_tags
+					JOIN interval_start ON interval_tags.interval_start_uuid = interval_start.uuid
+					LEFT JOIN interval_tags_tombstone
+						ON interval_tags.uuid = interval_tags_tombstone.interval_tag_uuid
+				WHERE interval_tags_tombstone.uuid IS NULL
+					AND interval_start.id = ?
+					AND interval_tags.tag = ?
+			)
+			INSERT INTO interval_tags_tombstone (uuid, interval_tag_uuid, created_at)
+			SELECT uuid(), uuid, unixepoch('now') FROM to_delete
 		`, id, tag); err != nil {
 			return fmt.Errorf("cannot untag interval %s from %s: %w", id, tag, err)
 		}
@@ -416,10 +437,12 @@ func (tt *TimeTracker) Untag(id string, tags []string) (ret error) {
 // Current returned the currently single opened interval if any.
 func (tt *TimeTracker) Current() (*TaggedInterval, error) {
 	row := tt.db.QueryRow(`
-		SELECT id, uuid, start_timestamp
-		FROM intervals
-		WHERE stop_timestamp IS NULL
-			AND deleted_at IS NULL`)
+		SELECT id, interval_start.uuid, start_timestamp
+		FROM interval_start
+			LEFT JOIN interval_stop ON interval_start.uuid = interval_stop.start_uuid
+			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
+		WHERE interval_stop.uuid IS NULL
+			AND interval_tombstone.uuid IS NULL`)
 
 	var (
 		unixStartTimestamp int64
@@ -437,7 +460,7 @@ func (tt *TimeTracker) Current() (*TaggedInterval, error) {
 	interval.Interval.StartTimestamp = time.Unix(unixStartTimestamp, 0)
 
 	rows, err := tt.db.Query(
-		`SELECT tag FROM interval_tags WHERE interval_uuid = ?`,
+		`SELECT tag FROM interval_tags WHERE interval_start_uuid = ?`,
 		interval.Interval.UUID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch tags for interval %s: %w", interval.Interval.ID, err)
@@ -469,9 +492,11 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 	var count int64
 	row := tx.QueryRow(`
 		SELECT count(1)
-		FROM intervals
-		WHERE stop_timestamp IS NULL
-			AND deleted_at IS NULL`)
+		FROM interval_start
+			LEFT JOIN interval_stop ON interval_start.uuid = interval_stop.start_uuid
+			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.uuid
+		WHERE interval_stop.uuid IS NULL
+			AND interval_tombstone.uuid IS NULL`)
 	if err = row.Scan(&count); err != nil {
 		return fmt.Errorf("cannot cound opened intervals: %w", err)
 	}
@@ -482,8 +507,10 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 
 	row = tx.QueryRow(`
 		SELECT count(1)
-		FROM intervals
-		WHERE deleted_at IS NULL
+		FROM interval_start
+			LEFT JOIN interval_stop ON interval_start.uuid = interval_stop.start_uuid
+			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
+		WHERE interval_tombstone.uuid IS NULL
 			AND start_timestamp <= ?1
 			AND stop_timestamp > ?1`, t.Unix())
 	if err = row.Scan(&count); err != nil {
@@ -498,19 +525,21 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 	if id == "" {
 		query = `WITH last_id AS (
 			SELECT id, uuid
-			FROM intervals
-			WHERE deleted_at IS NULL
+			FROM interval_start
+				LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
+			WHERE interval_tombstone.uuid IS NULL
 			ORDER BY start_timestamp DESC
 			LIMIT 1
 		)
 		SELECT interval_tags.tag
 		FROM interval_tags
-			INNER JOIN last_id ON interval_tags.interval_uuid = last_id.uuid`
+			INNER JOIN last_id ON interval_tags.interval_start_uuid = last_id.uuid`
 	} else {
 		query = `
 			SELECT interval_tags.tag
-			FROM intervals JOIN interval_tags ON intervals.uuid = interval_tags.interval_uuid
-			WHERE intervals.id = ?
+			FROM interval_start
+				JOIN interval_tags ON interval_start.uuid = interval_tags.interval_start_uuid
+			WHERE interval_start.id = ?
 		`
 	}
 
@@ -533,8 +562,8 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 
 	var newUUID string
 	row = tx.QueryRow(`
-		INSERT INTO intervals (uuid, start_timestamp, stop_timestamp, created_at)
-		VALUES (uuid(), ?, NULL, unixepoch('now'))
+		INSERT INTO interval_start (uuid, start_timestamp, created_at)
+		VALUES (uuid(), ?, unixepoch('now'))
 		RETURNING (uuid)`, t.Unix())
 	if err := row.Scan(&newUUID); err != nil {
 		return fmt.Errorf("cannot insert new interval: %w", err)
@@ -542,8 +571,8 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 
 	for _, t := range tags {
 		_, err := tx.Exec(`
-			INSERT INTO interval_tags (interval_uuid, tag, created_at)
-			VALUES (?, ?, unixepoch('now'))`, newUUID, t)
+			INSERT INTO interval_tags (uuid, interval_start_uuid, tag, created_at)
+			VALUES (uuid(), ?, ?, unixepoch('now'))`, newUUID, t)
 		if err != nil {
 			return fmt.Errorf("cannot tag interval %s with value %s: %w", newUUID, t, err)
 		}
@@ -556,44 +585,5 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 // It will also remove unused tags. At the end of the clean process, it will
 // perform a database vacuum.
 func (tt *TimeTracker) Vacuum(before time.Time) (ret error) {
-	tx, err := tt.db.Begin()
-	if err != nil {
-		return fmt.Errorf("cannot start transaction: %w", err)
-	}
-	defer completeTransaction(tx, &ret)
-
-	if _, err := tx.Exec(`
-		DELETE FROM intervals
-		WHERE deleted_at IS NOT NULL
-			AND deleted_at < ?`, before.Unix()); err != nil {
-		return fmt.Errorf("cannot delete lines from intervals table: %w", err)
-	}
-
-	if _, err := tx.Exec(`
-		WITH deleted_ids AS (
-			SELECT DISTINCT interval_uuid
-			FROM interval_tags LEFT JOIN intervals ON interval_tags.interval_uuid = intervals.uuid
-			WHERE intervals.uuid IS NULL
-		)
-		DELETE FROM interval_tags
-		WHERE interval_uuid IN (SELECT interval_uuid FROM deleted_ids)`); err != nil {
-		return fmt.Errorf("cannot delete lines from interval_tags table: %w", err)
-	}
-
-	if _, err := tx.Exec(`
-		WITH unreferenced_tags AS (
-			SELECT name
-			FROM tags LEFT JOIN interval_tags ON tags.name = interval_tags.tag
-			WHERE interval_tags.tag IS NULL
-		)
-		DELETE FROM tags
-		WHERE name IN (SELECT name FROM unreferenced_tags)`); err != nil {
-		return fmt.Errorf("cannot delete lines from tags table: %w", err)
-	}
-
-	if _, err := tt.db.Exec(`VACUUM`); err != nil {
-		return fmt.Errorf("cannot hard vacuum the database file: %w", err)
-	}
-
-	return nil
+	return fmt.Errorf("not implemented")
 }

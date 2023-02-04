@@ -206,7 +206,91 @@ func TestSync(t *testing.T) {
 	})
 
 	t.Run("get interval stop - null last sync", func(t *testing.T) {
-		t.Fail()
+		tt := setupTT(t)
+		now := time.Now()
+
+		for idx, r := range []intervalStartRow{
+			{
+				UUID:           "1",
+				StartTimestamp: now.Add(-8 * time.Hour).Unix(),
+				CreatedAt:      now.Add(-8 * time.Hour).Unix(),
+			},
+			{
+				UUID:           "2",
+				StartTimestamp: now.Add(-7 * time.Hour).Unix(),
+				CreatedAt:      now.Add(-7 * time.Hour).Unix(),
+			},
+			{
+				UUID:           "3",
+				StartTimestamp: now.Add(-4 * time.Hour).Unix(),
+				CreatedAt:      now.Add(-4 * time.Hour).Unix(),
+			},
+		} {
+			_, err := tt.db.Exec(`
+				INSERT INTO interval_start(uuid, start_timestamp, created_at)
+				VALUES (?, ?, ?)`,
+				fmt.Sprintf("%d", idx+1),
+				r.StartTimestamp,
+				r.CreatedAt)
+			require.NoError(t, err)
+		}
+
+		for _, r := range []intervalStopRow{
+			{
+				UUID:          "4",
+				StartUUID:     "1",
+				StopTimestamp: now.Add(-7 * time.Hour).Unix(),
+				CreatedAt:     now.Add(-7 * time.Hour).Unix(),
+			},
+			{
+				UUID:          "5",
+				StartUUID:     "2",
+				StopTimestamp: now.Add(-5 * time.Hour).Unix(),
+				CreatedAt:     now.Add(-5 * time.Hour).Unix(),
+			},
+			{
+				UUID:          "6",
+				StartUUID:     "3",
+				StopTimestamp: now.Add(-3 * time.Hour).Unix(),
+				CreatedAt:     now.Add(-3 * time.Hour).Unix(),
+			},
+		} {
+			_, err := tt.db.Exec(`
+				INSERT INTO interval_stop(uuid, start_uuid, stop_timestamp, created_at)
+				VALUES (?, ?, ?, ?)`,
+				r.UUID,
+				r.StartUUID,
+				r.StopTimestamp,
+				r.CreatedAt)
+			require.NoError(t, err)
+		}
+
+		tx, err := tt.db.Begin()
+		require.NoError(t, err)
+		t.Cleanup(func() { commit(t, tx) })
+
+		ir, err := getNewLocalIntervalStop(tx)
+		require.NoError(t, err)
+		require.Equal(t, []intervalStopRow{
+			{
+				UUID:          "4",
+				StartUUID:     "1",
+				StopTimestamp: now.Add(-7 * time.Hour).Unix(),
+				CreatedAt:     now.Add(-7 * time.Hour).Unix(),
+			},
+			{
+				UUID:          "5",
+				StartUUID:     "2",
+				StopTimestamp: now.Add(-5 * time.Hour).Unix(),
+				CreatedAt:     now.Add(-5 * time.Hour).Unix(),
+			},
+			{
+				UUID:          "6",
+				StartUUID:     "3",
+				StopTimestamp: now.Add(-3 * time.Hour).Unix(),
+				CreatedAt:     now.Add(-3 * time.Hour).Unix(),
+			},
+		}, ir)
 	})
 
 	t.Run("get interval stop - with last sync", func(t *testing.T) {

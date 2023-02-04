@@ -438,7 +438,7 @@ func TestSync(t *testing.T) {
 		}, ir)
 	})
 
-	/*	t.Run("get interval tags - null last sync", func(t *testing.T) {
+	t.Run("get interval tags - null last sync", func(t *testing.T) {
 
 		tt := setupTT(t)
 
@@ -450,55 +450,46 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		for _, ir := range []intervalRow{
+		for _, ir := range []intervalStartRow{
 			{
 				UUID:           "1",
 				StartTimestamp: now.Add(-24 * time.Hour).Unix(),
-				StopTimestamp: sql.NullInt64{
-					Int64: now.Add(-23 * time.Hour).Unix(),
-					Valid: true,
-				},
-				CreatedAt: now.Add(-24 * time.Hour).Unix(),
-				UpdatedAt: sql.NullInt64{
-					Int64: now.Add(-23 * time.Hour).Unix(),
-					Valid: true,
-				},
+				CreatedAt:      now.Add(-24 * time.Hour).Unix(),
 			},
 		} {
 			_, err := tt.db.Exec(`
-				INSERT INTO intervals (
-					uuid, start_timestamp, stop_timestamp, deleted_at, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?)`,
+				INSERT INTO interval_start (uuid, start_timestamp, created_at)
+				VALUES (?, ?, ?)`,
 				ir.UUID,
 				ir.StartTimestamp,
-				ir.StopTimestamp,
-				ir.DeletedAt,
-				ir.CreatedAt,
-				ir.UpdatedAt)
+				ir.CreatedAt)
 			require.NoError(t, err)
 		}
 
 		for _, data := range []intervalTagsRow{
 			{
-				UUID:      "1",
+				UUID:      "10",
+				StartUUID: "1",
 				Tag:       "a",
 				CreatedAt: now.Add(-24 * time.Hour).Unix(),
 			},
 			{
-				UUID:      "1",
+				UUID:      "11",
+				StartUUID: "1",
 				Tag:       "b",
 				CreatedAt: now.Add(-23 * time.Hour).Unix(),
 			},
 			{
-				UUID:      "1",
+				UUID:      "12",
+				StartUUID: "1",
 				Tag:       "c",
 				CreatedAt: now.Add(-22 * time.Hour).Unix(),
 			},
 		} {
 			_, err := tt.db.Exec(`
-				INSERT INTO interval_tags (interval_uuid, tag, created_at, deleted_at)
+				INSERT INTO interval_tags (uuid, interval_start_uuid, tag, created_at)
 				VALUES (?, ?, ?, ?)`,
-				data.UUID, data.Tag, data.CreatedAt, data.DeletedAt)
+				data.UUID, data.StartUUID, data.Tag, data.CreatedAt)
 			require.NoError(t, err)
 		}
 
@@ -510,153 +501,119 @@ func TestSync(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []intervalTagsRow{
 			{
-				UUID:      "1",
+				UUID:      "10",
+				StartUUID: "1",
 				Tag:       "a",
 				CreatedAt: now.Add(-24 * time.Hour).Unix(),
 			},
 			{
-				UUID:      "1",
+				UUID:      "11",
+				StartUUID: "1",
 				Tag:       "b",
 				CreatedAt: now.Add(-23 * time.Hour).Unix(),
 			},
 			{
-				UUID:      "1",
+				UUID:      "12",
+				StartUUID: "1",
 				Tag:       "c",
 				CreatedAt: now.Add(-22 * time.Hour).Unix(),
 			},
 		}, itr)
-	})*/
+	})
 
-	/*
-	   t.Run("get interval tags - with last sync", func(t *testing.T) {
+	t.Run("get interval tags - with last sync", func(t *testing.T) {
 
-	   		tt := setupTT(t)
+		tt := setupTT(t)
 
-	   		now := time.Now()
+		now := time.Now()
 
-	   		{
-	   			_, err := tt.db.Exec(`
+		{
+			_, err := tt.db.Exec(`
 	   					INSERT INTO sync_history (sync_timestamp)
 	   					VALUES (?), (?)
 	   				`, now.Add(-5*24*time.Hour).Unix(), now.Add(-6*time.Hour).Unix())
-	   			require.NoError(t, err)
-	   		}
+			require.NoError(t, err)
+		}
 
-	   		for _, tag := range []string{"a", "b", "c"} {
-	   			_, err := tt.db.Exec(`INSERT INTO tags (name, created_at)
+		for _, tag := range []string{"a", "b", "c"} {
+			_, err := tt.db.Exec(`INSERT INTO tags (name, created_at)
 	   				VALUES (?, unixepoch('now'))`, tag)
-	   			require.NoError(t, err)
-	   		}
+			require.NoError(t, err)
+		}
 
-	   		for _, ir := range []intervalRow{
-	   			{
-	   				UUID:           "1",
-	   				StartTimestamp: now.Add(-24 * time.Hour).Unix(),
-	   				StopTimestamp: sql.NullInt64{
-	   					Int64: now.Add(-23 * time.Hour).Unix(),
-	   					Valid: true,
-	   				},
-	   				CreatedAt: now.Add(-24 * time.Hour).Unix(),
-	   				UpdatedAt: sql.NullInt64{
-	   					Int64: now.Add(-23 * time.Hour).Unix(),
-	   					Valid: true,
-	   				},
-	   			},
-	   			{
-	   				UUID:           "2",
-	   				StartTimestamp: now.Add(-22 * time.Hour).Unix(),
-	   				StopTimestamp: sql.NullInt64{
-	   					Int64: now.Add(-21 * time.Hour).Unix(),
-	   					Valid: true,
-	   				},
-	   				CreatedAt: now.Add(-22 * time.Hour).Unix(),
-	   				UpdatedAt: sql.NullInt64{
-	   					Int64: now.Add(-21 * time.Hour).Unix(),
-	   					Valid: true,
-	   				},
-	   			},
-	   		} {
-	   			_, err := tt.db.Exec(`
-	   				INSERT INTO intervals (
-	   					uuid, start_timestamp, stop_timestamp, deleted_at, created_at, updated_at)
-	   				VALUES (?, ?, ?, ?, ?, ?)`,
-	   				ir.UUID,
-	   				ir.StartTimestamp,
-	   				ir.StopTimestamp,
-	   				ir.DeletedAt,
-	   				ir.CreatedAt,
-	   				ir.UpdatedAt)
-	   			require.NoError(t, err)
-	   		}
+		for _, ir := range []intervalStartRow{
+			{
+				UUID:           "1",
+				StartTimestamp: now.Add(-24 * time.Hour).Unix(),
+				CreatedAt:      now.Add(-24 * time.Hour).Unix(),
+			},
+			{
+				UUID:           "2",
+				StartTimestamp: now.Add(-22 * time.Hour).Unix(),
+				CreatedAt:      now.Add(-22 * time.Hour).Unix(),
+			},
+		} {
+			_, err := tt.db.Exec(`
+	   				INSERT INTO interval_start (uuid, start_timestamp, created_at)
+	   				VALUES (?, ?, ?)`,
+				ir.UUID,
+				ir.StartTimestamp,
+				ir.CreatedAt)
+			require.NoError(t, err)
+		}
 
-	   		for _, data := range []intervalTagsRow{
-	   			{
-	   				UUID:      "1",
-	   				Tag:       "a",
-	   				CreatedAt: now.Add(-24 * time.Hour).Unix(),
-	   			},
-	   			{
-	   				UUID:      "1",
-	   				Tag:       "b",
-	   				CreatedAt: now.Add(-24 * time.Hour).Unix(),
-	   				DeletedAt: sql.NullInt64{
-	   					Int64: now.Add(-4 * time.Hour).Unix(),
-	   					Valid: true,
-	   				},
-	   			},
-	   			{
-	   				UUID:      "1",
-	   				Tag:       "c",
-	   				CreatedAt: now.Add(-4 * time.Hour).Unix(),
-	   			},
-	   			{
-	   				UUID:      "2",
-	   				Tag:       "a",
-	   				CreatedAt: now.Add(-3 * time.Hour).Unix(),
-	   				DeletedAt: sql.NullInt64{
-	   					Int64: now.Add(-2 * time.Hour).Unix(),
-	   					Valid: true,
-	   				},
-	   			},
-	   		} {
-	   			_, err := tt.db.Exec(`
-	   				INSERT INTO interval_tags (interval_uuid, tag, created_at, deleted_at)
+		for _, data := range []intervalTagsRow{
+			{
+				UUID:      "10",
+				StartUUID: "1",
+				Tag:       "a",
+				CreatedAt: now.Add(-24 * time.Hour).Unix(),
+			},
+			{
+				UUID:      "11",
+				StartUUID: "1",
+				Tag:       "b",
+				CreatedAt: now.Add(-24 * time.Hour).Unix(),
+			},
+			{
+				UUID:      "12",
+				StartUUID: "1",
+				Tag:       "c",
+				CreatedAt: now.Add(-4 * time.Hour).Unix(),
+			},
+			{
+				UUID:      "13",
+				StartUUID: "2",
+				Tag:       "a",
+				CreatedAt: now.Add(-3 * time.Hour).Unix(),
+			},
+		} {
+			_, err := tt.db.Exec(`
+	   				INSERT INTO interval_tags (uuid, interval_start_uuid, tag, created_at)
 	   				VALUES (?, ?, ?, ?)`,
-	   				data.UUID, data.Tag, data.CreatedAt, data.DeletedAt)
-	   			require.NoError(t, err)
-	   		}
+				data.UUID, data.StartUUID, data.Tag, data.CreatedAt)
+			require.NoError(t, err)
+		}
 
-	   		tx, err := tt.db.Begin()
-	   		require.NoError(t, err)
-	   		t.Cleanup(func() { commit(t, tx) })
+		tx, err := tt.db.Begin()
+		require.NoError(t, err)
+		t.Cleanup(func() { commit(t, tx) })
 
-	   		itr, err := getNewLocalIntervalTags(tx)
-	   		require.NoError(t, err)
-	   		require.Equal(t, []intervalTagsRow{
-	   			{
-	   				UUID:      "1",
-	   				Tag:       "b",
-	   				CreatedAt: now.Add(-24 * time.Hour).Unix(),
-	   				DeletedAt: sql.NullInt64{
-	   					Int64: now.Add(-4 * time.Hour).Unix(),
-	   					Valid: true,
-	   				},
-	   			},
-	   			{
-	   				UUID:      "1",
-	   				Tag:       "c",
-	   				CreatedAt: now.Add(-4 * time.Hour).Unix(),
-	   			},
-	   			{
-	   				UUID:      "2",
-	   				Tag:       "a",
-	   				CreatedAt: now.Add(-3 * time.Hour).Unix(),
-	   				DeletedAt: sql.NullInt64{
-	   					Int64: now.Add(-2 * time.Hour).Unix(),
-	   					Valid: true,
-	   				},
-	   			},
-	   		}, itr)
-	   	})
-	*/
+		itr, err := getNewLocalIntervalTags(tx)
+		require.NoError(t, err)
+		require.Equal(t, []intervalTagsRow{
+			{
+				UUID:      "12",
+				StartUUID: "1",
+				Tag:       "c",
+				CreatedAt: now.Add(-4 * time.Hour).Unix(),
+			},
+			{
+				UUID:      "13",
+				StartUUID: "2",
+				Tag:       "a",
+				CreatedAt: now.Add(-3 * time.Hour).Unix(),
+			},
+		}, itr)
+	})
 }

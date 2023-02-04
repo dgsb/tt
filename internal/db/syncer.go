@@ -61,9 +61,15 @@ type intervalTombstoneRow struct {
 
 type intervalTagsRow struct {
 	UUID      string
+	StartUUID string
 	Tag       string
 	CreatedAt int64
-	DeletedAt sql.NullInt64
+}
+
+type intervalTagsTombstoneRow struct {
+	UUID            string
+	IntervalTagUUID string
+	CreatedAt       int64
 }
 
 // getNewLocalTags return all tags created since the last sync operation
@@ -231,13 +237,11 @@ func getNewLocalIntervalTags(tx *sql.Tx) (newLocalIntervalTags []intervalTagsRow
 			SELECT max(sync_timestamp) last_timestamp
 			FROM sync_history
 		)
-		SELECT interval_uuid, tag, created_at, deleted_at
+		SELECT uuid, interval_start_uuid, tag, created_at
 		FROM interval_tags
 			JOIN last_sync
-				ON (last_timestamp IS NULL
-					OR created_at >= last_timestamp
-					OR deleted_at >= last_timestamp)
-		ORDER BY created_at, deleted_at`)
+				ON (last_timestamp IS NULL OR created_at >= last_timestamp)
+		ORDER BY created_at`)
 	if err != nil {
 		return nil, fmt.Errorf("cannot query local interval_tags table: %w", err)
 	}
@@ -249,10 +253,9 @@ func getNewLocalIntervalTags(tx *sql.Tx) (newLocalIntervalTags []intervalTagsRow
 
 	for i := 0; rows.Next(); i++ {
 		var itr intervalTagsRow
-		if err := rows.Scan(&itr.UUID, &itr.Tag, &itr.CreatedAt, &itr.DeletedAt); err != nil {
+		if err := rows.Scan(&itr.UUID, &itr.StartUUID, &itr.Tag, &itr.CreatedAt); err != nil {
 			return nil, fmt.Errorf("cannot scan local interval_tags table: %w", err)
 		}
-		fmt.Println(i, itr)
 		newLocalIntervalTags = append(newLocalIntervalTags, itr)
 	}
 	if err := rows.Err(); err != nil {

@@ -498,7 +498,7 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 		WHERE interval_stop.uuid IS NULL
 			AND interval_tombstone.uuid IS NULL`)
 	if err = row.Scan(&count); err != nil {
-		return fmt.Errorf("cannot cound opened intervals: %w", err)
+		return fmt.Errorf("cannot count opened intervals: %w", err)
 	}
 
 	if count >= 1 {
@@ -524,7 +524,7 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 	var query string
 	if id == "" {
 		query = `WITH last_id AS (
-			SELECT id, uuid
+			SELECT id, interval_start.uuid
 			FROM interval_start
 				LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
 			WHERE interval_tombstone.uuid IS NULL

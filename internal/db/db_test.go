@@ -252,6 +252,12 @@ func TestTimeTracker(t *testing.T) {
 		err = tt.Stop(time.Date(2022, 2, 25, 15, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 
+		err = tt.Continue(time.Date(2022, 2, 25, 15, 0, 0, 0, time.UTC), "")
+		require.NoError(t, err)
+
+		err = tt.Stop(time.Date(2022, 2, 25, 16, 0, 0, 0, time.UTC))
+		require.NoError(t, err)
+
 		err = tt.Continue(time.Date(2022, 2, 25, 16, 0, 0, 0, time.UTC), "1")
 		require.NoError(t, err)
 
@@ -268,10 +274,11 @@ func TestTimeTracker(t *testing.T) {
 			time.Date(2022, 2, 25, 11, 0, 0, 0, time.UTC),
 			time.Date(2022, 2, 25, 20, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
-		require.Len(t, itv, 4)
+		require.Len(t, itv, 5)
 		require.Equal(t, []string{"tag1", "tag2"}, itv[0].Tags)
 		require.Equal(t, []string{"tag3", "tag4"}, itv[1].Tags)
-		require.Equal(t, []string{"tag1", "tag2"}, itv[2].Tags)
-		require.Equal(t, []string{"tag3", "tag4"}, itv[3].Tags)
+		require.Equal(t, []string{"tag3", "tag4"}, itv[2].Tags)
+		require.Equal(t, []string{"tag1", "tag2"}, itv[3].Tags)
+		require.Equal(t, []string{"tag3", "tag4"}, itv[4].Tags)
 	})
 }

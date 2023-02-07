@@ -56,7 +56,7 @@ func TestTimeTracker(t *testing.T) {
 		require.NoError(t, err)
 
 		now := time.Now()
-		err = tt.Start(now, []string{})
+		err = tt.Start(now, []string{"a", "b", "c"})
 		require.NoError(t, err)
 
 		ti, err = tt.Current()
@@ -69,6 +69,7 @@ func TestTimeTracker(t *testing.T) {
 				ID:             "1",
 				StartTimestamp: now.Truncate(time.Second),
 			},
+			Tags: []string{"a", "b", "c"},
 		}, ti)
 
 		err = tt.Stop(now.Add(time.Hour))
@@ -77,6 +78,21 @@ func TestTimeTracker(t *testing.T) {
 		ti, err = tt.Current()
 		require.NoError(t, err)
 		require.Nil(t, ti)
+
+		tia, err := tt.List(now.Add(-1*time.Hour), now.Add(2*time.Hour))
+		require.NoError(t, err)
+		tia[0].UUID = ""
+
+		require.Equal(t, []TaggedInterval{
+			{
+				Interval: Interval{
+					ID:             "1",
+					StartTimestamp: now.Truncate(time.Second),
+					StopTimestamp:  now.Add(time.Hour).Truncate(time.Second),
+				},
+				Tags: []string{"a", "b", "c"},
+			},
+		}, tia)
 	})
 
 	t.Run("stop timestamp before start - failed", func(t *testing.T) {
@@ -221,13 +237,19 @@ func TestTimeTracker(t *testing.T) {
 		err = tt.Stop(time.Date(2022, 2, 25, 13, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 
+		err = tt.Start(time.Date(2022, 2, 25, 14, 0, 0, 0, time.UTC), []string{"tag3", "tag4"})
+		require.NoError(t, err)
+
 		itv, err := tt.List(
 			time.Date(2022, 2, 24, 0, 0, 0, 0, time.UTC),
 			time.Date(2022, 2, 26, 0, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
-		require.Len(t, itv, 1)
+		require.Len(t, itv, 2)
 
 		err = tt.Delete(itv[0].ID)
+		require.NoError(t, err)
+
+		err = tt.Delete(itv[1].ID)
 		require.NoError(t, err)
 
 		itv, err = tt.List(

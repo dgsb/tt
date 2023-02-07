@@ -265,13 +265,56 @@ func getNewLocalIntervalTags(tx *sql.Tx) (newLocalIntervalTags []intervalTagsRow
 	return newLocalIntervalTags, nil
 }
 
+func getNewLocalIntervalTagsTombstone(tx *sql.Tx) (val []intervalTagsTombstoneRow, ret error) {
+
+	rows, err := tx.Query(`
+		WITH last_sync AS (
+			SELECT max(sync_timestamp) last_timestamp
+			FROM sync_history
+		)
+		SELECT uuid, interval_tag_uuid, created_at
+		FROM interval_tags_tombstone
+			JOIN last_sync
+				ON (last_timestamp IS NULL OR created_at >= last_timestamp)
+		ORDER BY created_at`)
+	if err != nil {
+		return nil, fmt.Errorf("cannot query interval_tags_tombstone table: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			val, ret = nil, multierror.Append(ret, err)
+		}
+	}()
+
+	for rows.Next() {
+		var r intervalTagsTombstoneRow
+		if err := rows.Scan(
+			&r.UUID,
+			&r.IntervalTagUUID,
+			&r.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("cannot scan interval_tags_tombsone row: %w", err)
+		}
+		val = append(val, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("cannot browse interval_tags_tombstone table: %w", err)
+	}
+
+	return
+}
+
 // Sync performs a bidirectional synchronisation with the central database.
 func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 	syncDB, err := setupSyncerDB(cfg)
 	if err != nil {
 		return fmt.Errorf("cannot open syncer database: %w", err)
 	}
-	defer func() { _ = syncDB.Close() }()
+	defer func() {
+		if err2 := syncDB.Close(); err2 != nil {
+			ret = multierror.Append(ret, fmt.Errorf("cannot close sync db: %w", err2))
+		}
+	}()
 
 	tx, err := tt.db.Begin()
 	if err != nil {

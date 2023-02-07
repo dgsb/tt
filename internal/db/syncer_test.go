@@ -613,15 +613,15 @@ func TestSync(t *testing.T) {
 
 		{
 			_, err := tt.db.Exec(`
-	   					INSERT INTO sync_history (sync_timestamp)
-	   					VALUES (?), (?)
-	   				`, now.Add(-5*24*time.Hour).Unix(), now.Add(-6*time.Hour).Unix())
+						INSERT INTO sync_history (sync_timestamp)
+						VALUES (?), (?)`,
+				now.Add(-5*24*time.Hour).Unix(), now.Add(-6*time.Hour).Unix())
 			require.NoError(t, err)
 		}
 
 		for _, tag := range []string{"a", "b", "c"} {
 			_, err := tt.db.Exec(`INSERT INTO tags (name, created_at)
-	   				VALUES (?, unixepoch('now'))`, tag)
+					VALUES (?, unixepoch('now'))`, tag)
 			require.NoError(t, err)
 		}
 
@@ -638,8 +638,8 @@ func TestSync(t *testing.T) {
 			},
 		} {
 			_, err := tt.db.Exec(`
-	   				INSERT INTO interval_start (uuid, start_timestamp, created_at)
-	   				VALUES (?, ?, ?)`,
+					INSERT INTO interval_start (uuid, start_timestamp, created_at)
+					VALUES (?, ?, ?)`,
 				ir.UUID,
 				ir.StartTimestamp,
 				ir.CreatedAt)
@@ -673,8 +673,8 @@ func TestSync(t *testing.T) {
 			},
 		} {
 			_, err := tt.db.Exec(`
-	   				INSERT INTO interval_tags (uuid, interval_start_uuid, tag, created_at)
-	   				VALUES (?, ?, ?, ?)`,
+					INSERT INTO interval_tags (uuid, interval_start_uuid, tag, created_at)
+					VALUES (?, ?, ?, ?)`,
 				data.UUID, data.StartUUID, data.Tag, data.CreatedAt)
 			require.NoError(t, err)
 		}
@@ -699,5 +699,211 @@ func TestSync(t *testing.T) {
 				CreatedAt: now.Add(-3 * time.Hour).Unix(),
 			},
 		}, itr)
+	})
+
+	t.Run("get interval tags tombstone - null last sync", func(t *testing.T) {
+		tt := setupTT(t)
+
+		now := time.Now()
+
+		for _, tag := range []string{"a", "b", "c"} {
+			_, err := tt.db.Exec(`INSERT INTO tags (name, created_at)
+				VALUES (?, unixepoch('now'))`, tag)
+			require.NoError(t, err)
+		}
+
+		for _, ir := range []intervalStartRow{
+			{
+				UUID:           "1",
+				StartTimestamp: now.Add(-24 * time.Hour).Unix(),
+				CreatedAt:      now.Add(-24 * time.Hour).Unix(),
+			},
+		} {
+			_, err := tt.db.Exec(`
+				INSERT INTO interval_start (uuid, start_timestamp, created_at)
+				VALUES (?, ?, ?)`,
+				ir.UUID,
+				ir.StartTimestamp,
+				ir.CreatedAt)
+			require.NoError(t, err)
+		}
+
+		for _, data := range []intervalTagsRow{
+			{
+				UUID:      "10",
+				StartUUID: "1",
+				Tag:       "a",
+				CreatedAt: now.Add(-24 * time.Hour).Unix(),
+			},
+			{
+				UUID:      "11",
+				StartUUID: "1",
+				Tag:       "b",
+				CreatedAt: now.Add(-23 * time.Hour).Unix(),
+			},
+		} {
+			_, err := tt.db.Exec(`
+				INSERT INTO interval_tags (uuid, interval_start_uuid, tag, created_at)
+				VALUES (?, ?, ?, ?)`,
+				data.UUID, data.StartUUID, data.Tag, data.CreatedAt)
+			require.NoError(t, err)
+		}
+
+		for _, data := range []intervalTagsTombstoneRow{
+			{
+				UUID:            "100",
+				IntervalTagUUID: "10",
+				CreatedAt:       now.Add(-1 * time.Hour).Unix(),
+			},
+			{
+				UUID:            "101",
+				IntervalTagUUID: "11",
+				CreatedAt:       now.Add(-1 * time.Minute).Unix(),
+			},
+		} {
+			_, err := tt.db.Exec(`
+				INSERT INTO interval_tags_tombstone (uuid, interval_tag_uuid, created_at)
+				VALUES (?, ?, ?)`,
+				data.UUID, data.IntervalTagUUID, data.CreatedAt)
+			require.NoError(t, err)
+		}
+
+		tx, err := tt.db.Begin()
+		require.NoError(t, err)
+		t.Cleanup(func() { commit(t, tx) })
+
+		data, err := getNewLocalIntervalTagsTombstone(tx)
+		require.NoError(t, err)
+		require.Equal(t, []intervalTagsTombstoneRow{
+			{
+				UUID:            "100",
+				IntervalTagUUID: "10",
+				CreatedAt:       now.Add(-1 * time.Hour).Unix(),
+			},
+			{
+				UUID:            "101",
+				IntervalTagUUID: "11",
+				CreatedAt:       now.Add(-1 * time.Minute).Unix(),
+			},
+		}, data)
+	})
+
+	t.Run("get interval tags tombstone - with last sync", func(t *testing.T) {
+
+		tt := setupTT(t)
+
+		now := time.Now()
+
+		{
+			_, err := tt.db.Exec(`
+						INSERT INTO sync_history (sync_timestamp)
+						VALUES (?), (?)
+					`, now.Add(-5*24*time.Hour).Unix(), now.Add(-6*time.Hour).Unix())
+			require.NoError(t, err)
+		}
+
+		for _, tag := range []string{"a", "b", "c"} {
+			_, err := tt.db.Exec(`INSERT INTO tags (name, created_at)
+				VALUES (?, unixepoch('now'))`, tag)
+			require.NoError(t, err)
+		}
+
+		for _, ir := range []intervalStartRow{
+			{
+				UUID:           "1",
+				StartTimestamp: now.Add(-24 * time.Hour).Unix(),
+				CreatedAt:      now.Add(-24 * time.Hour).Unix(),
+			},
+			{
+				UUID:           "2",
+				StartTimestamp: now.Add(-23 * time.Hour).Unix(),
+				CreatedAt:      now.Add(-23 * time.Hour).Unix(),
+			},
+		} {
+			_, err := tt.db.Exec(`
+					INSERT INTO interval_start (uuid, start_timestamp, created_at)
+					VALUES (?, ?, ?)`,
+				ir.UUID,
+				ir.StartTimestamp,
+				ir.CreatedAt)
+			require.NoError(t, err)
+		}
+
+		for _, ir := range []intervalStopRow{
+			{
+				UUID:          "11",
+				StartUUID:     "1",
+				StopTimestamp: now.Add(-23 * time.Hour).Unix(),
+				CreatedAt:     now.Add(-23 * time.Hour).Unix(),
+			},
+		} {
+			_, err := tt.db.Exec(`
+				INSERT INTO interval_stop (uuid, start_uuid, stop_timestamp, created_at)
+				VALUES (?, ?, ?, ?)`,
+				ir.UUID,
+				ir.StartUUID,
+				ir.StopTimestamp,
+				ir.CreatedAt)
+			require.NoError(t, err)
+		}
+
+		for _, ir := range []intervalTagsRow{
+			{
+				UUID:      "101",
+				StartUUID: "1",
+				Tag:       "a",
+				CreatedAt: now.Add(-24 * time.Hour).Unix(),
+			},
+			{
+				UUID:      "102",
+				StartUUID: "2",
+				Tag:       "b",
+				CreatedAt: now.Add(-23 * time.Hour).Unix(),
+			},
+		} {
+			_, err := tt.db.Exec(`
+				INSERT INTO interval_tags (uuid, interval_start_uuid, tag, created_at)
+				VALUES (?, ?, ?, ?)`,
+				ir.UUID,
+				ir.StartUUID,
+				ir.Tag,
+				ir.CreatedAt)
+			require.NoError(t, err)
+		}
+
+		for _, ir := range []intervalTagsTombstoneRow{
+			{
+				UUID:            "1001",
+				IntervalTagUUID: "101",
+				CreatedAt:       now.Add(-4 * time.Hour).Unix(),
+			},
+			{
+				UUID:            "1002",
+				IntervalTagUUID: "102",
+				CreatedAt:       now.Add(-24 * 2 * time.Hour).Unix(),
+			},
+		} {
+			_, err := tt.db.Exec(`
+				INSERT INTO interval_tags_tombstone (uuid, interval_tag_uuid, created_at)
+				VALUES (?, ?, ?)`,
+				ir.UUID,
+				ir.IntervalTagUUID,
+				ir.CreatedAt)
+			require.NoError(t, err)
+		}
+
+		tx, err := tt.db.Begin()
+		require.NoError(t, err)
+		t.Cleanup(func() { commit(t, tx) })
+
+		data, err := getNewLocalIntervalTagsTombstone(tx)
+		require.NoError(t, err)
+		require.Equal(t, []intervalTagsTombstoneRow{
+			{
+				UUID:            "1001",
+				IntervalTagUUID: "101",
+				CreatedAt:       now.Add(-4 * time.Hour).Unix(),
+			},
+		}, data)
 	})
 }

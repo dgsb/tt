@@ -585,5 +585,5 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 // It will also remove unused tags. At the end of the clean process, it will
 // perform a database vacuum.
 func (tt *TimeTracker) Vacuum(before time.Time) (ret error) {
-	return fmt.Errorf("not implemented")
+	return ErrNotImplemented
 }

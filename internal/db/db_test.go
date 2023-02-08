@@ -262,6 +262,24 @@ func TestTimeTracker(t *testing.T) {
 	t.Run("continue", func(t *testing.T) {
 		tt := setupTT(t)
 
+		// Implicit continue without previous interval should fail
+		{
+			err := tt.Continue(time.Now(), "")
+			require.Error(t, err)
+		}
+
+		// Test count the query with an unclosed deleted interval
+		{
+			err := tt.Start(time.Date(2022, 2, 25, 12, 0, 0, 0, time.UTC), []string{"tag1", "tag2"})
+			require.NoError(t, err)
+
+			err = tt.Delete("1")
+			require.NoError(t, err)
+
+			err = tt.Continue(time.Now(), "1")
+			require.Error(t, err)
+		}
+
 		err := tt.Start(time.Date(2022, 2, 25, 12, 0, 0, 0, time.UTC), []string{"tag1", "tag2"})
 		require.NoError(t, err)
 
@@ -280,13 +298,13 @@ func TestTimeTracker(t *testing.T) {
 		err = tt.Stop(time.Date(2022, 2, 25, 16, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 
-		err = tt.Continue(time.Date(2022, 2, 25, 16, 0, 0, 0, time.UTC), "1")
+		err = tt.Continue(time.Date(2022, 2, 25, 16, 0, 0, 0, time.UTC), "2")
 		require.NoError(t, err)
 
 		err = tt.Stop(time.Date(2022, 2, 25, 17, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 
-		err = tt.Continue(time.Date(2022, 2, 25, 18, 0, 0, 0, time.UTC), "2")
+		err = tt.Continue(time.Date(2022, 2, 25, 18, 0, 0, 0, time.UTC), "3")
 		require.NoError(t, err)
 
 		err = tt.Stop(time.Date(2022, 2, 25, 19, 0, 0, 0, time.UTC))
@@ -297,10 +315,15 @@ func TestTimeTracker(t *testing.T) {
 			time.Date(2022, 2, 25, 20, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 		require.Len(t, itv, 5)
+		require.Equal(t, "2", itv[0].ID)
 		require.Equal(t, []string{"tag1", "tag2"}, itv[0].Tags)
+		require.Equal(t, "3", itv[1].ID)
 		require.Equal(t, []string{"tag3", "tag4"}, itv[1].Tags)
+		require.Equal(t, "4", itv[2].ID)
 		require.Equal(t, []string{"tag3", "tag4"}, itv[2].Tags)
+		require.Equal(t, "5", itv[3].ID)
 		require.Equal(t, []string{"tag1", "tag2"}, itv[3].Tags)
+		require.Equal(t, "6", itv[4].ID)
 		require.Equal(t, []string{"tag3", "tag4"}, itv[4].Tags)
 	})
 }

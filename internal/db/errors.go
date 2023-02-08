@@ -12,5 +12,6 @@ var (
 	ErrInvalidStartTimestamp = fmt.Errorf("invalid start timestamp")
 	ErrInvalidStopTimestamp  = fmt.Errorf("invalid stop timestamp")
 	ErrMultipleOpenInterval  = fmt.Errorf("multiple opened interval")
+	ErrNotFound              = fmt.Errorf("not found entity")
 	ErrNotImplemented        = fmt.Errorf("operation not implemented")
 )

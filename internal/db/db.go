@@ -494,7 +494,7 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 		SELECT count(1)
 		FROM interval_start
 			LEFT JOIN interval_stop ON interval_start.uuid = interval_stop.start_uuid
-			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.uuid
+			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
 		WHERE interval_stop.uuid IS NULL
 			AND interval_tombstone.uuid IS NULL`)
 	if err = row.Scan(&count); err != nil {
@@ -531,15 +531,17 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 			ORDER BY start_timestamp DESC
 			LIMIT 1
 		)
-		SELECT interval_tags.tag
-		FROM interval_tags
-			INNER JOIN last_id ON interval_tags.interval_start_uuid = last_id.uuid`
+		SELECT last_id.uuid, interval_tags.tag
+		FROM last_id
+			LEFT JOIN interval_tags ON interval_tags.interval_start_uuid = last_id.uuid`
 	} else {
 		query = `
-			SELECT interval_tags.tag
+			SELECT interval_start.uuid, interval_tags.tag
 			FROM interval_start
-				JOIN interval_tags ON interval_start.uuid = interval_tags.interval_start_uuid
-			WHERE interval_start.id = ?
+				LEFT JOIN interval_tags ON interval_start.uuid = interval_tags.interval_start_uuid
+				LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
+			WHERE interval_tombstone.uuid IS NULL
+				AND interval_start.id = ?
 		`
 	}
 
@@ -548,16 +550,24 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 		return fmt.Errorf("cannot retrieve tags associated with last closed interval: %w", err)
 	}
 
+	var uuid string
 	var tags []string
+
 	for rows.Next() {
-		var t string
-		if err := rows.Scan(&t); err != nil {
+		var t sql.NullString
+		if err := rows.Scan(&uuid, &t); err != nil {
 			return fmt.Errorf("cannot scan tag: %w", err)
 		}
-		tags = append(tags, t)
+		if t.Valid {
+			tags = append(tags, t.String)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("cannot iterate over tags cursor: %w", err)
+	}
+
+	if uuid == "" {
+		return fmt.Errorf("cannot find interval to continue: %w", ErrNotFound)
 	}
 
 	var newUUID string

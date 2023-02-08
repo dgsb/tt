@@ -226,6 +226,39 @@ func TestTimeTracker(t *testing.T) {
 		require.Equal(t, []string{"tag1", "tag3", "tag4"}, itv[0].Tags)
 	})
 
+	t.Run("untag deleted interval", func(t *testing.T) {
+
+		tt := setupTT(t)
+		now := time.Now().Truncate(time.Second)
+
+		err := tt.Start(now, []string{"tag1", "tag2"})
+		require.NoError(t, err)
+
+		itv, err := tt.List(now.Add(-time.Hour), now.Add(time.Hour))
+		require.NoError(t, err)
+		require.Len(t, itv, 1)
+		itv[0].UUID = ""
+		require.Equal(t, []TaggedInterval{
+			{
+				Interval: Interval{
+					ID:             "1",
+					StartTimestamp: now,
+				},
+				Tags: []string{"tag1", "tag2"},
+			},
+		}, itv)
+
+		err = tt.Delete(itv[0].ID)
+		require.NoError(t, err)
+
+		err = tt.Untag(itv[0].ID, []string{"tag2"})
+		require.NoError(t, err)
+
+		itv, err = tt.List(now.Add(-time.Hour), now.Add(time.Hour))
+		require.NoError(t, err)
+		require.Len(t, itv, 0)
+	})
+
 	t.Run("delete", func(t *testing.T) {
 		tt := setupTT(t)
 

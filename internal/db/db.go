@@ -417,10 +417,14 @@ func (tt *TimeTracker) Untag(id string, tags []string) (ret error) {
 			WITH to_delete AS (
 				SELECT interval_tags.uuid
 				FROM interval_tags
-					JOIN interval_start ON interval_tags.interval_start_uuid = interval_start.uuid
+					JOIN interval_start
+						ON interval_tags.interval_start_uuid = interval_start.uuid
+					LEFT JOIN interval_tombstone
+						ON interval_tombstone.start_uuid = interval_start.uuid
 					LEFT JOIN interval_tags_tombstone
 						ON interval_tags.uuid = interval_tags_tombstone.interval_tag_uuid
 				WHERE interval_tags_tombstone.uuid IS NULL
+					AND interval_tombstone.uuid IS NULL
 					AND interval_start.id = ?
 					AND interval_tags.tag = ?
 			)

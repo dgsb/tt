@@ -548,14 +548,23 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 		)
 		SELECT last_id.uuid, interval_tags.tag
 		FROM last_id
-			LEFT JOIN interval_tags ON interval_tags.interval_start_uuid = last_id.uuid`
+			LEFT JOIN interval_tags
+				ON interval_tags.interval_start_uuid = last_id.uuid
+			LEFT JOIN interval_tags_tombstone
+				ON interval_tags_tombstone.interval_tag_uuid = interval_tags.uuid
+		WHERE interval_tags_tombstone.uuid IS NULL`
 	} else {
 		query = `
 			SELECT interval_start.uuid, interval_tags.tag
 			FROM interval_start
-				LEFT JOIN interval_tags ON interval_start.uuid = interval_tags.interval_start_uuid
-				LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
+				LEFT JOIN interval_tags
+					ON interval_start.uuid = interval_tags.interval_start_uuid
+				LEFT JOIN interval_tombstone
+					ON interval_start.uuid = interval_tombstone.start_uuid
+				LEFT JOIN interval_tags_tombstone
+					ON interval_tags.uuid = interval_tags_tombstone.interval_tag_uuid
 			WHERE interval_tombstone.uuid IS NULL
+				AND interval_tags_tombstone.uuid IS NULL
 				AND interval_start.id = ?
 		`
 	}

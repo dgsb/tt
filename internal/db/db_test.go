@@ -359,4 +359,62 @@ func TestTimeTracker(t *testing.T) {
 		require.Equal(t, "6", itv[4].ID)
 		require.Equal(t, []string{"tag3", "tag4"}, itv[4].Tags)
 	})
+
+	t.Run("continue on id with deleted tags", func(t *testing.T) {
+		now := time.Now().Truncate(time.Second)
+		tt := setupTT(t)
+
+		err := tt.Start(now.Add(-time.Hour), []string{"tag1", "tag2", "tag3"})
+		require.NoError(t, err)
+
+		err = tt.Stop(now.Add(-59 * time.Minute))
+		require.NoError(t, err)
+
+		err = tt.Untag("1", []string{"tag2"})
+		require.NoError(t, err)
+
+		err = tt.Continue(now.Add(-58*time.Minute), "")
+		require.NoError(t, err)
+
+		err = tt.Stop(now.Add(-57 * time.Minute))
+		require.NoError(t, err)
+
+		err = tt.Continue(now.Add(-56*time.Minute), "1")
+		require.NoError(t, err)
+
+		err = tt.Stop(now.Add(-55 * time.Minute))
+		require.NoError(t, err)
+
+		itv, err := tt.List(now.Add(-2*time.Hour), now.Add(time.Hour))
+		require.NoError(t, err)
+		for idx, _ := range itv {
+			itv[idx].UUID = ""
+		}
+		require.Equal(t, []TaggedInterval{
+			{
+				Interval: Interval{
+					ID:             "1",
+					StartTimestamp: now.Add(-time.Hour),
+					StopTimestamp:  now.Add(-59 * time.Minute),
+				},
+				Tags: []string{"tag1", "tag3"},
+			},
+			{
+				Interval: Interval{
+					ID:             "2",
+					StartTimestamp: now.Add(-58 * time.Minute),
+					StopTimestamp:  now.Add(-57 * time.Minute),
+				},
+				Tags: []string{"tag1", "tag3"},
+			},
+			{
+				Interval: Interval{
+					ID:             "3",
+					StartTimestamp: now.Add(-56 * time.Minute),
+					StopTimestamp:  now.Add(-55 * time.Minute),
+				},
+				Tags: []string{"tag1", "tag3"},
+			},
+		}, itv)
+	})
 }

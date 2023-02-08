@@ -252,7 +252,7 @@ func TestTimeTracker(t *testing.T) {
 		require.NoError(t, err)
 
 		err = tt.Untag(itv[0].ID, []string{"tag2"})
-		require.NoError(t, err)
+		require.Error(t, err)
 
 		itv, err = tt.List(now.Add(-time.Hour), now.Add(time.Hour))
 		require.NoError(t, err)

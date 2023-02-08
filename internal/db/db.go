@@ -404,13 +404,24 @@ func (tt *TimeTracker) Tag(id string, tags []string) (ret error) {
 	return nil
 }
 
-// XXX add unit tests
 func (tt *TimeTracker) Untag(id string, tags []string) (ret error) {
 	tx, err := tt.db.Begin()
 	if err != nil {
 		return fmt.Errorf("cannot start a transaction: %w", err)
 	}
 	defer completeTransaction(tx, &ret)
+
+	row := tx.QueryRow(`
+		SELECT interval_start.uuid
+		FROM interval_start
+			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
+		WHERE interval_tombstone.uuid IS NULL
+			AND interval_start.id = ?`, id)
+
+	var intervalUUID string
+	if err := row.Scan(&intervalUUID); err != nil {
+		return multierror.Append(fmt.Errorf("%w: id %s", ErrNotFound, id), err)
+	}
 
 	for _, tag := range tags {
 		if _, err := tx.Exec(`

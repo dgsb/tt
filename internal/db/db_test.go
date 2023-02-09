@@ -387,7 +387,7 @@ func TestTimeTracker(t *testing.T) {
 
 		itv, err := tt.List(now.Add(-2*time.Hour), now.Add(time.Hour))
 		require.NoError(t, err)
-		for idx, _ := range itv {
+		for idx := range itv {
 			itv[idx].UUID = ""
 		}
 		require.Equal(t, []TaggedInterval{

@@ -574,12 +574,12 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 		return fmt.Errorf("cannot retrieve tags associated with last closed interval: %w", err)
 	}
 
-	var uuid string
+	var UUID string
 	var tags []string
 
 	for rows.Next() {
 		var t sql.NullString
-		if err := rows.Scan(&uuid, &t); err != nil {
+		if err := rows.Scan(&UUID, &t); err != nil {
 			return fmt.Errorf("cannot scan tag: %w", err)
 		}
 		if t.Valid {
@@ -590,7 +590,7 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 		return fmt.Errorf("cannot iterate over tags cursor: %w", err)
 	}
 
-	if uuid == "" {
+	if UUID == "" {
 		return fmt.Errorf("cannot find interval to continue: %w", ErrNotFound)
 	}
 

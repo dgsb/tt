@@ -8,28 +8,43 @@ CREATE TABLE darwin_migrations
                     execution_time FLOAT    NOT NULL,
                     UNIQUE         (version)
                 );
-CREATE TABLE sqlite_sequence(name,seq);
 CREATE TABLE tags (
     name TEXT PRIMARY KEY
 , created_at INTEGER);
-CREATE TABLE IF NOT EXISTS "intervals" (
+CREATE TABLE sqlite_sequence(name,seq);
+CREATE TABLE sync_history (
+    sync_timestamp INTEGER PRIMARY KEY
+);
+CREATE TABLE interval_start (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     uuid TEXT UNIQUE NOT NULL,
     start_timestamp INTEGER NOT NULL,
-    stop_timestamp INTEGER,
-    deleted_at INTEGER,
-    created_at INTEGER,
-    updated_at INTEGER
+    created_at INTEGER NOT NULL
+);
+CREATE TABLE interval_stop (
+    uuid TEXT PRIMARY KEY,
+    start_uuid TEXT UNIQUE NOT NULL,
+    stop_timestamp INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (start_uuid) REFERENCES interval_start(uuid)
+);
+CREATE TABLE interval_tombstone (
+    uuid TEXT PRIMARY KEY,
+    start_uuid TEXT UNIQUE NOT NULL,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (start_uuid) REFERENCES interval_start(uuid)
 );
 CREATE TABLE IF NOT EXISTS "interval_tags" (
-    interval_uuid TEXT,
+    uuid TEXT PRIMARY KEY,
+    interval_start_uuid TEXT,
     tag TEXT,
     created_at INTEGER,
-    deleted_at INTEGER,
-    PRIMARY KEY(interval_uuid, tag, deleted_at)
-    FOREIGN KEY (interval_uuid) REFERENCES "intervals"(uuid),
-    FOREIGN KEY (tag) REFERENCES tags(name)
+    FOREIGN KEY(interval_start_uuid) REFERENCES interval_start(uuid),
+    FOREIGN KEY(tag) REFERENCES tags(name)
 );
-CREATE TABLE sync_history (
-    sync_timestamp INTEGER PRIMARY KEY
+CREATE TABLE interval_tags_tombstone (
+    uuid TEXT PRIMARY KEY,
+    interval_tag_uuid TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY(interval_tag_uuid) REFERENCES "interval_tags"(uuid)
 );

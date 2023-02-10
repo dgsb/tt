@@ -19,6 +19,9 @@ var sqliteAddUUIDKey string
 //go:embed migrations/sqlite/04_sync_meta.sql
 var sqliteAddSyncMeta string
 
+//go:embed migrations/sqlite/05_immutable_interval_object.sql
+var sqliteAddImmutableInterval string
+
 func runSqliteMigrations(db *sql.DB) error {
 	return darwin.Migrate(
 		darwin.NewGenericDriver(db, darwin.SqliteDialect{}),
@@ -42,6 +45,11 @@ func runSqliteMigrations(db *sql.DB) error {
 				Version:     4,
 				Description: "add a synchronisation history table",
 				Script:      sqliteAddSyncMeta,
+			},
+			{
+				Version:     5,
+				Description: "split intervals table in 3 immutable table",
+				Script:      sqliteAddImmutableInterval,
 			},
 		},
 		nil)

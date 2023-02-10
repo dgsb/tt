@@ -18,8 +18,12 @@ func Build() error {
 }
 
 // Run the test suite
-func Test() error {
-	return sh.Run("go", "test", "./...")
+func Test(coverage bool) error {
+	if coverage {
+		return sh.Run("go", "test", "-coverprofile", "cover.out", "./...")
+	} else {
+		return sh.Run("go", "test", "./...")
+	}
 }
 
 // Run golangci-lint v1.50.1 from its docker image on the repository
@@ -36,6 +40,6 @@ func Lint() error {
 }
 
 func All() {
-	mg.Deps(Build, Test)
+	mg.Deps(Build, func() { Test(false) })
 	mg.Deps(Lint)
 }

@@ -1,2 +1,4 @@
 .*.sw*
 /tt
+/cover.out
+/mage

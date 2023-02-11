@@ -95,6 +95,32 @@ func TestTimeTracker(t *testing.T) {
 		}, tia)
 	})
 
+	t.Run("stop for test", func(t *testing.T) {
+		tt := setupTT(t)
+		now := time.Now()
+
+		err := tt.Start(now.Add(-30*time.Minute), []string{})
+		require.NoError(t, err)
+
+		err = tt.StopFor(30 * time.Minute)
+		require.NoError(t, err)
+
+		itv, err := tt.List(now.Add(-time.Hour), now.Add(time.Hour))
+		require.NoError(t, err)
+		for idx := range itv {
+			itv[idx].Interval.UUID = ""
+		}
+		require.Equal(t, []TaggedInterval{
+			{
+				Interval: Interval{
+					ID:             "1",
+					StartTimestamp: now.Add(-30 * time.Minute).Truncate(time.Second),
+					StopTimestamp:  now.Truncate(time.Second),
+				},
+			},
+		}, itv)
+	})
+
 	t.Run("stop timestamp before start - failed", func(t *testing.T) {
 		tt := setupTT(t)
 		now := time.Now()

@@ -72,7 +72,7 @@ func TestTimeTracker(t *testing.T) {
 			Tags: []string{"a", "b", "c"},
 		}, ti)
 
-		err = tt.Stop(now.Add(time.Hour))
+		err = tt.StopAt(now.Add(time.Hour))
 		require.NoError(t, err)
 
 		ti, err = tt.Current()
@@ -100,7 +100,7 @@ func TestTimeTracker(t *testing.T) {
 		now := time.Now()
 		err := tt.Start(now, []string{})
 		require.NoError(t, err)
-		err = tt.Stop(now.Add(-time.Hour))
+		err = tt.StopAt(now.Add(-time.Hour))
 		require.Error(t, err)
 	})
 
@@ -109,7 +109,7 @@ func TestTimeTracker(t *testing.T) {
 		now := time.Now()
 		err := tt.Start(now, []string{})
 		require.NoError(t, err)
-		err = tt.Stop(time.Time{})
+		err = tt.StopAt(time.Time{})
 		require.Error(t, err)
 	})
 
@@ -119,7 +119,7 @@ func TestTimeTracker(t *testing.T) {
 		err := tt.Start(time.Date(2022, 2, 25, 13, 30, 0, 0, time.UTC), nil)
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 12, 0, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 12, 0, 0, 0, time.UTC))
 		require.Error(t, err)
 	})
 
@@ -129,7 +129,7 @@ func TestTimeTracker(t *testing.T) {
 		err := tt.Start(time.Date(2022, 2, 25, 13, 30, 0, 0, time.UTC), nil)
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 14, 30, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 14, 30, 0, 0, time.UTC))
 		require.NoError(t, err)
 
 		err = tt.Start(time.Date(2022, 2, 25, 14, 0, 0, 0, time.UTC), nil)
@@ -142,13 +142,13 @@ func TestTimeTracker(t *testing.T) {
 		err := tt.Start(time.Date(2022, 2, 25, 13, 30, 0, 0, time.UTC), nil)
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 14, 30, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 14, 30, 0, 0, time.UTC))
 		require.NoError(t, err)
 
 		err = tt.Start(time.Date(2022, 2, 25, 12, 0, 0, 0, time.UTC), nil)
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 14, 0, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 14, 0, 0, 0, time.UTC))
 		require.Error(t, err)
 	})
 
@@ -160,19 +160,19 @@ func TestTimeTracker(t *testing.T) {
 		err = tt.Start(time.Date(2022, 2, 25, 12, 0, 0, 0, time.UTC), nil)
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 13, 0, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 13, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 
 		err = tt.Start(time.Date(2022, 2, 25, 14, 0, 0, 0, time.UTC), nil)
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 15, 0, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 15, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 
 		err = tt.Start(time.Date(2022, 2, 25, 13, 0, 0, 0, time.UTC), nil)
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 14, 0, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 14, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 	})
 
@@ -184,13 +184,13 @@ func TestTimeTracker(t *testing.T) {
 		err = tt.Start(time.Date(2022, 2, 25, 12, 0, 0, 0, time.UTC), nil)
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 13, 0, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 13, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 
 		err = tt.Start(time.Date(2022, 2, 25, 11, 0, 0, 0, time.UTC), nil)
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 14, 0, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 14, 0, 0, 0, time.UTC))
 		require.Error(t, err)
 	})
 
@@ -202,7 +202,7 @@ func TestTimeTracker(t *testing.T) {
 		err = tt.Start(time.Date(2022, 2, 25, 12, 0, 0, 0, time.UTC), []string{"tag1", "tag2"})
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 13, 0, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 13, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 
 		itv, err := tt.List(
@@ -267,7 +267,7 @@ func TestTimeTracker(t *testing.T) {
 		err = tt.Start(time.Date(2022, 2, 25, 12, 0, 0, 0, time.UTC), []string{"tag1", "tag2"})
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 13, 0, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 13, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 
 		err = tt.Start(time.Date(2022, 2, 25, 14, 0, 0, 0, time.UTC), []string{"tag3", "tag4"})
@@ -316,31 +316,31 @@ func TestTimeTracker(t *testing.T) {
 		err := tt.Start(time.Date(2022, 2, 25, 12, 0, 0, 0, time.UTC), []string{"tag1", "tag2"})
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 13, 0, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 13, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 
 		err = tt.Start(time.Date(2022, 2, 25, 14, 0, 0, 0, time.UTC), []string{"tag3", "tag4"})
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 15, 0, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 15, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 
 		err = tt.Continue(time.Date(2022, 2, 25, 15, 0, 0, 0, time.UTC), "")
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 16, 0, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 16, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 
 		err = tt.Continue(time.Date(2022, 2, 25, 16, 0, 0, 0, time.UTC), "2")
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 17, 0, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 17, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 
 		err = tt.Continue(time.Date(2022, 2, 25, 18, 0, 0, 0, time.UTC), "3")
 		require.NoError(t, err)
 
-		err = tt.Stop(time.Date(2022, 2, 25, 19, 0, 0, 0, time.UTC))
+		err = tt.StopAt(time.Date(2022, 2, 25, 19, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 
 		itv, err := tt.List(
@@ -367,7 +367,7 @@ func TestTimeTracker(t *testing.T) {
 		err := tt.Start(now.Add(-time.Hour), []string{"tag1", "tag2", "tag3"})
 		require.NoError(t, err)
 
-		err = tt.Stop(now.Add(-59 * time.Minute))
+		err = tt.StopAt(now.Add(-59 * time.Minute))
 		require.NoError(t, err)
 
 		err = tt.Untag("1", []string{"tag2"})
@@ -376,13 +376,13 @@ func TestTimeTracker(t *testing.T) {
 		err = tt.Continue(now.Add(-58*time.Minute), "")
 		require.NoError(t, err)
 
-		err = tt.Stop(now.Add(-57 * time.Minute))
+		err = tt.StopAt(now.Add(-57 * time.Minute))
 		require.NoError(t, err)
 
 		err = tt.Continue(now.Add(-56*time.Minute), "1")
 		require.NoError(t, err)
 
-		err = tt.Stop(now.Add(-55 * time.Minute))
+		err = tt.StopAt(now.Add(-55 * time.Minute))
 		require.NoError(t, err)
 
 		itv, err := tt.List(now.Add(-2*time.Hour), now.Add(time.Hour))

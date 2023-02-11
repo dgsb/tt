@@ -38,7 +38,7 @@ func (cmd *StartCmd) Run(tt *db.TimeTracker) error {
 	}
 
 	// Stop the current interval before opening a new one
-	if err := tt.Stop(startTime); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err := tt.StopAt(startTime); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("cannot stop currently opened interval: %w", err)
 	}
 
@@ -52,9 +52,17 @@ func (cmd *StartCmd) Run(tt *db.TimeTracker) error {
 type StopCmd struct {
 	At  itime.Time    `help:"specify the stop timestamp in RFC3339 format" group:"time" xor:"time"`
 	Ago time.Duration `help:"specify the stop timestamp as a duration in the past" group:"time" xor:"time"`
+	For time.Duration `help:"specify the stop timestamp as the wanted duration for closed interval" group:"time" xor:"time"`
 }
 
 func (cmd *StopCmd) Run(tt *db.TimeTracker) error {
+	if cmd.For != 0 {
+		if err := tt.StopFor(cmd.For); err != nil {
+			return fmt.Errorf("cannot stop a currently opened interval: %w", err)
+		}
+		return nil
+	}
+
 	stopTime := time.Now()
 	if !cmd.At.Time().IsZero() {
 		stopTime = cmd.At.Time()
@@ -62,7 +70,7 @@ func (cmd *StopCmd) Run(tt *db.TimeTracker) error {
 		stopTime = time.Now().Add(-cmd.Ago)
 	}
 
-	if err := tt.Stop(stopTime); err != nil {
+	if err := tt.StopAt(stopTime); err != nil {
 		return fmt.Errorf("cannot stop a currently opened interval: %w", err)
 	}
 

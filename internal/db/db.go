@@ -161,7 +161,6 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	}
 
 	// Link the new interval with its associated tags
-	// XXX add unit test there
 	for _, tag := range tags {
 		_, err := tx.Exec(`
 			INSERT INTO interval_tags (uuid, interval_start_uuid, tag, created_at)
@@ -176,7 +175,12 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 }
 
 // Stop close the current opened interval at the requested timestamp.
-func (tt *TimeTracker) Stop(t time.Time) (ret error) {
+func (tt *TimeTracker) stop(t time.Time, d time.Duration) (ret error) {
+
+	if (!t.IsZero() && d != 0) || (t.IsZero() && d == 0) {
+		return fmt.Errorf("%w: one parameter must be set", ErrInvalidParam)
+	}
+
 	tx, err := tt.db.Begin()
 	if err != nil {
 		return fmt.Errorf("cannot start transaction: %w", err)
@@ -201,6 +205,9 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 	}
 	if count > 1 {
 		return fmt.Errorf("%w: %d", ErrMultipleOpenInterval, count)
+	}
+	if d != 0 {
+		t = time.Unix(startTimestampUnix, 0).Add(d)
 	}
 	if startTimestampUnix >= t.Unix() {
 		return ErrInvalidStopTimestamp
@@ -232,6 +239,14 @@ func (tt *TimeTracker) Stop(t time.Time) (ret error) {
 	}
 
 	return nil
+}
+
+func (tt *TimeTracker) StopAt(t time.Time) error {
+	return tt.stop(t, 0)
+}
+
+func (tt *TimeTracker) StopFor(d time.Duration) error {
+	return tt.stop(time.Time{}, d)
 }
 
 // XXX add unit test

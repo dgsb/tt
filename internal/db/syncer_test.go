@@ -14,7 +14,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-func startPostgres(t *testing.T) (hostname string, port int) {
+func startPostgres(t *testing.T) SyncerConfig {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -44,9 +44,16 @@ func startPostgres(t *testing.T) (hostname string, port int) {
 	require.NoError(t, err)
 	splitted := strings.Split(endpoint, ":")
 	require.Len(t, splitted, 2, "cannot split endpoint: %s", endpoint)
-	port, err = strconv.Atoi(splitted[1])
+	port, err := strconv.Atoi(splitted[1])
 	require.NoError(t, err)
-	return splitted[0], port
+
+	return SyncerConfig{
+		Login:        "postgres",
+		Password:     "postgres",
+		Hostname:     splitted[0],
+		Port:         port,
+		DatabaseName: "postgres",
+	}
 }
 
 func commit(t *testing.T, tx *sql.Tx) {
@@ -56,15 +63,7 @@ func commit(t *testing.T, tx *sql.Tx) {
 }
 
 func TestSetupSyncer(t *testing.T) {
-	ip, port := startPostgres(t)
-
-	db, err := setupSyncerDB(SyncerConfig{
-		Login:        "postgres",
-		Password:     "postgres",
-		Hostname:     ip,
-		Port:         port,
-		DatabaseName: "postgres",
-	})
+	db, err := setupSyncerDB(startPostgres(t))
 	require.NoError(t, err)
 	require.NotNil(t, db)
 }
@@ -83,7 +82,7 @@ func TestSync(t *testing.T) {
 
 		t.Cleanup(func() { commit(t, tx) })
 
-		tags, err := getNewLocalTags(tx)
+		tags, err := getNewTags(tx)
 		require.NoError(t, err)
 		require.Equal(t, []string{"test_tag1", "test_tag2"}, tags)
 	})
@@ -108,7 +107,7 @@ func TestSync(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		tags, err := getNewLocalTags(tx)
+		tags, err := getNewTags(tx)
 		require.NoError(t, err)
 		require.Equal(t, []string{"test_tag2"}, tags)
 	})
@@ -141,7 +140,7 @@ func TestSync(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		ir, err := getNewLocalIntervalStart(tx)
+		ir, err := getNewIntervalStart(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalStartRow{
 			{
@@ -194,7 +193,7 @@ func TestSync(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		ir, err := getNewLocalIntervalStart(tx)
+		ir, err := getNewIntervalStart(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalStartRow{
 			{
@@ -269,7 +268,7 @@ func TestSync(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		ir, err := getNewLocalIntervalStop(tx)
+		ir, err := getNewIntervalStop(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalStopRow{
 			{
@@ -365,7 +364,7 @@ func TestSync(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		ir, err := getNewLocalIntervalStop(tx)
+		ir, err := getNewIntervalStop(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalStopRow{
 			{
@@ -425,7 +424,7 @@ func TestSync(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		ir, err := getNewLocalIntervalTombstone(tx)
+		ir, err := getNewIntervalTombstone(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalTombstoneRow{
 			{
@@ -506,7 +505,7 @@ func TestSync(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		ir, err := getNewLocalIntervalTombstone(tx)
+		ir, err := getNewIntervalTombstone(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalTombstoneRow{
 			{
@@ -581,7 +580,7 @@ func TestSync(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		itr, err := getNewLocalIntervalTags(tx)
+		itr, err := getNewIntervalTags(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalTagsRow{
 			{
@@ -683,7 +682,7 @@ func TestSync(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		itr, err := getNewLocalIntervalTags(tx)
+		itr, err := getNewIntervalTags(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalTagsRow{
 			{
@@ -772,7 +771,7 @@ func TestSync(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		data, err := getNewLocalIntervalTagsTombstone(tx)
+		data, err := getNewIntervalTagsTombstone(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalTagsTombstoneRow{
 			{
@@ -896,7 +895,7 @@ func TestSync(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		data, err := getNewLocalIntervalTagsTombstone(tx)
+		data, err := getNewIntervalTagsTombstone(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalTagsTombstoneRow{
 			{
@@ -905,5 +904,12 @@ func TestSync(t *testing.T) {
 				CreatedAt:       now.Add(-4 * time.Hour).Unix(),
 			},
 		}, data)
+	})
+
+	t.Run("empty sync", func(t *testing.T) {
+		tt := setupTT(t)
+		syncCfg := startPostgres(t)
+		err := tt.Sync(syncCfg)
+		require.NoError(t, err)
 	})
 }

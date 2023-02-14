@@ -220,6 +220,22 @@ func (cmd *VacuumCmd) Run(tt *db.TimeTracker) error {
 	return nil
 }
 
+type RecordCmd struct {
+	Start itime.Time `arg:"" help:"the start time interval of the record"`
+	Stop  itime.Time `arg:"" help:"the stop time interval of the record"`
+	Tags  []string   `arg:"" help:"the list of tags to attach to this new interval"`
+}
+
+func (cmd *RecordCmd) Run(tt *db.TimeTracker) error {
+	if err := tt.Start(cmd.Start.Time(), cmd.Tags); err != nil {
+		return fmt.Errorf("cannot register new start interval: %w", err)
+	}
+	if err := tt.StopAt(cmd.Stop.Time()); err != nil {
+		return fmt.Errorf("cannot register new stop interval: %w", err)
+	}
+	return nil
+}
+
 func main() {
 
 	homeDir, err := os.UserHomeDir()
@@ -234,6 +250,7 @@ func main() {
 		Current  CurrentCmd  `default:"1" cmd:"" help:"return the current opened interval"`
 		Delete   DeleteCmd   `cmd:"" help:"delete a registered interval"`
 		List     ListCmd     `cmd:"" help:"list intervals"`
+		Record   RecordCmd   `cmd:"" help:"record a new closed interval with it tags"`
 		Start    StartCmd    `cmd:"" help:"start tracking a new time interval"`
 		Stop     StopCmd     `cmd:"" help:"stop tracking the current opened interval"`
 		Tag      TagCmd      `cmd:"" help:"tag an interval with given values"`

@@ -2,13 +2,13 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -56,7 +56,7 @@ func startPostgres(t *testing.T) SyncerConfig {
 	}
 }
 
-func commit(t *testing.T, tx *sql.Tx) {
+func commit(t *testing.T, tx transactioner) {
 	t.Helper()
 	err := tx.Commit()
 	require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestSync(t *testing.T) {
 				('test_tag2', unixepoch('now'))`)
 		require.NoError(t, err)
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 
 		t.Cleanup(func() { commit(t, tx) })
@@ -103,7 +103,7 @@ func TestSync(t *testing.T) {
 			VALUES (?), (?)`, now.Add(-2*time.Hour).Unix(), now.Unix())
 		require.NoError(t, err)
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -136,7 +136,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -189,7 +189,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -264,7 +264,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -360,7 +360,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -420,7 +420,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -501,7 +501,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -576,7 +576,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -678,7 +678,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -767,7 +767,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -891,7 +891,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -911,5 +911,37 @@ func TestSync(t *testing.T) {
 		syncCfg := startPostgres(t)
 		err := tt.Sync(syncCfg)
 		require.NoError(t, err)
+	})
+
+	t.Run("simple sync with 2 db's", func(t *testing.T) {
+		syncCfg := startPostgres(t)
+		tt1 := setupTT(t)
+		tt2 := setupTT(t)
+		now := time.Now()
+
+		tt1.Start(now.Add(-4*time.Hour), []string{"tag1"})
+		tt1.StopAt(now.Add(-3 * time.Hour))
+
+		tt2.Start(now.Add(-2*time.Hour), []string{"tag2"})
+		tt2.StopAt(now.Add(-time.Hour))
+
+		err := tt1.Sync(syncCfg)
+		require.NoError(t, err)
+		err = tt2.Sync(syncCfg)
+		require.NoError(t, err)
+		err = tt1.Sync(syncCfg)
+		require.NoError(t, err)
+
+		itv1, err := tt1.List(now.Add(-10*time.Hour), now.Add(10*time.Hour))
+		require.NoError(t, err)
+		itv2, err := tt2.List(now.Add(-10*time.Hour), now.Add(10*time.Hour))
+		require.NoError(t, err)
+		for idx := range itv1 {
+			itv1[idx].Interval.ID = ""
+		}
+		for idx := range itv2 {
+			itv2[idx].Interval.ID = ""
+		}
+		require.Equal(t, itv1, itv2, "itv1 %#v, itv2 %#v", itv1, itv2)
 	})
 }

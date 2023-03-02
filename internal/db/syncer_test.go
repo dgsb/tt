@@ -2,19 +2,19 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-func startPostgres(t *testing.T) (hostname string, port int) {
+func startPostgres(t *testing.T) SyncerConfig {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -44,27 +44,26 @@ func startPostgres(t *testing.T) (hostname string, port int) {
 	require.NoError(t, err)
 	splitted := strings.Split(endpoint, ":")
 	require.Len(t, splitted, 2, "cannot split endpoint: %s", endpoint)
-	port, err = strconv.Atoi(splitted[1])
+	port, err := strconv.Atoi(splitted[1])
 	require.NoError(t, err)
-	return splitted[0], port
+
+	return SyncerConfig{
+		Login:        "postgres",
+		Password:     "postgres",
+		Hostname:     splitted[0],
+		Port:         port,
+		DatabaseName: "postgres",
+	}
 }
 
-func commit(t *testing.T, tx *sql.Tx) {
+func commit(t *testing.T, tx transactioner) {
 	t.Helper()
 	err := tx.Commit()
 	require.NoError(t, err)
 }
 
 func TestSetupSyncer(t *testing.T) {
-	ip, port := startPostgres(t)
-
-	db, err := setupSyncerDB(SyncerConfig{
-		Login:        "postgres",
-		Password:     "postgres",
-		Hostname:     ip,
-		Port:         port,
-		DatabaseName: "postgres",
-	})
+	db, err := setupSyncerDB(startPostgres(t))
 	require.NoError(t, err)
 	require.NotNil(t, db)
 }
@@ -78,12 +77,12 @@ func TestSync(t *testing.T) {
 				('test_tag2', unixepoch('now'))`)
 		require.NoError(t, err)
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 
 		t.Cleanup(func() { commit(t, tx) })
 
-		tags, err := getNewLocalTags(tx)
+		tags, err := getNewTags(tx)
 		require.NoError(t, err)
 		require.Equal(t, []string{"test_tag1", "test_tag2"}, tags)
 	})
@@ -104,11 +103,11 @@ func TestSync(t *testing.T) {
 			VALUES (?), (?)`, now.Add(-2*time.Hour).Unix(), now.Unix())
 		require.NoError(t, err)
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		tags, err := getNewLocalTags(tx)
+		tags, err := getNewTags(tx)
 		require.NoError(t, err)
 		require.Equal(t, []string{"test_tag2"}, tags)
 	})
@@ -137,11 +136,11 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		ir, err := getNewLocalIntervalStart(tx)
+		ir, err := getNewIntervalStart(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalStartRow{
 			{
@@ -190,11 +189,11 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		ir, err := getNewLocalIntervalStart(tx)
+		ir, err := getNewIntervalStart(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalStartRow{
 			{
@@ -265,11 +264,11 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		ir, err := getNewLocalIntervalStop(tx)
+		ir, err := getNewIntervalStop(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalStopRow{
 			{
@@ -361,11 +360,11 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		ir, err := getNewLocalIntervalStop(tx)
+		ir, err := getNewIntervalStop(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalStopRow{
 			{
@@ -421,11 +420,11 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		ir, err := getNewLocalIntervalTombstone(tx)
+		ir, err := getNewIntervalTombstone(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalTombstoneRow{
 			{
@@ -502,11 +501,11 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		ir, err := getNewLocalIntervalTombstone(tx)
+		ir, err := getNewIntervalTombstone(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalTombstoneRow{
 			{
@@ -577,11 +576,11 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		itr, err := getNewLocalIntervalTags(tx)
+		itr, err := getNewIntervalTags(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalTagsRow{
 			{
@@ -679,11 +678,11 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		itr, err := getNewLocalIntervalTags(tx)
+		itr, err := getNewIntervalTags(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalTagsRow{
 			{
@@ -768,11 +767,11 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		data, err := getNewLocalIntervalTagsTombstone(tx)
+		data, err := getNewIntervalTagsTombstone(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalTagsTombstoneRow{
 			{
@@ -892,11 +891,11 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := tt.db.Begin()
+		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
-		data, err := getNewLocalIntervalTagsTombstone(tx)
+		data, err := getNewIntervalTagsTombstone(tx)
 		require.NoError(t, err)
 		require.Equal(t, []intervalTagsTombstoneRow{
 			{
@@ -905,5 +904,46 @@ func TestSync(t *testing.T) {
 				CreatedAt:       now.Add(-4 * time.Hour).Unix(),
 			},
 		}, data)
+	})
+
+	t.Run("empty sync", func(t *testing.T) {
+		tt := setupTT(t)
+		syncCfg := startPostgres(t)
+		err := tt.Sync(syncCfg)
+		require.NoError(t, err)
+	})
+
+	t.Run("simple sync with 2 db's", func(t *testing.T) {
+		syncCfg := startPostgres(t)
+		tt1 := setupTT(t)
+		tt2 := setupTT(t)
+		now := time.Now()
+
+		tt1.Start(now.Add(-4*time.Hour), []string{"tag1"})
+		tt1.StopAt(now.Add(-3 * time.Hour))
+
+		tt2.Start(now.Add(-2*time.Hour), []string{"tag2"})
+		tt2.StopAt(now.Add(-time.Hour))
+
+		err := tt1.Sync(syncCfg)
+		require.NoError(t, err)
+		err = tt2.Sync(syncCfg)
+		require.NoError(t, err)
+		// workaround for the timestamp primary key in the sync_history table
+		time.Sleep(time.Second)
+		err = tt1.Sync(syncCfg)
+		require.NoError(t, err)
+
+		itv1, err := tt1.List(now.Add(-10*time.Hour), now.Add(10*time.Hour))
+		require.NoError(t, err)
+		itv2, err := tt2.List(now.Add(-10*time.Hour), now.Add(10*time.Hour))
+		require.NoError(t, err)
+		for idx := range itv1 {
+			itv1[idx].Interval.ID = ""
+		}
+		for idx := range itv2 {
+			itv2[idx].Interval.ID = ""
+		}
+		require.Equal(t, itv1, itv2, "itv1 %#v, itv2 %#v", itv1, itv2)
 	})
 }

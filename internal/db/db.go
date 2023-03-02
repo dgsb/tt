@@ -28,8 +28,13 @@ func init() {
 	})
 }
 
+type transactioner interface {
+	Commit() error
+	Rollback() error
+}
+
 func completeTransaction(
-	tx *sql.Tx,
+	tx transactioner,
 	retErr *error, //nolint:gocritic
 ) {
 	if *retErr != nil {

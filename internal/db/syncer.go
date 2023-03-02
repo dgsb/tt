@@ -92,6 +92,16 @@ func setupLastSyncTimestamp(tx *sqlx.Tx, lastSync time.Time) error {
 	return nil
 }
 
+func storeLastSyncTimestamp(tx *sqlx.Tx, syncTime time.Time) error {
+	if _, err := tx.Exec(
+		`INSERT INTO sync_history (sync_timestamp) VALUES (?)`,
+		syncTime.Unix(),
+	); err != nil {
+		return fmt.Errorf("cannot insert into sync_history table: %w", err)
+	}
+	return nil
+}
+
 // getLastSyncTimestamp returns the last registered sync timestamp.
 // If the return time.Time is zero, it means no sync has ever occured.
 func getLastSyncTimestamp(tx *sqlx.Tx) (time.Time, error) {
@@ -617,6 +627,9 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 	}
 
 	// Store the last sync timestamp
+	if err := storeLastSyncTimestamp(tx, now); err != nil {
+		return fmt.Errorf("cannot store last sync timestamp: %w", err)
+	}
 
 	return nil
 }

@@ -929,6 +929,8 @@ func TestSync(t *testing.T) {
 		require.NoError(t, err)
 		err = tt2.Sync(syncCfg)
 		require.NoError(t, err)
+		// workaround for the timestamp primary key in the sync_history table
+		time.Sleep(time.Second)
 		err = tt1.Sync(syncCfg)
 		require.NoError(t, err)
 

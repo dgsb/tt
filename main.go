@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/alecthomas/kong"
+	"github.com/dgsb/configlite"
 	"github.com/sirupsen/logrus"
 
 	"github.com/dgsb/tt/internal/db"
@@ -17,6 +19,10 @@ import (
 
 var (
 	errInvalidParameter = fmt.Errorf("invalid parameter")
+)
+
+const (
+	appName = "github.com/dgsb/tt"
 )
 
 type CommonConfig struct {
@@ -236,6 +242,59 @@ func (cmd *RecordCmd) Run(tt *db.TimeTracker) error {
 	return nil
 }
 
+type SyncCmd struct {
+	Login        string `long:"login" short:"l" help:"remote database user login"`
+	Password     string `long:"password" help:"remote database password" env:"TT_SYNC_PASSWORD"`
+	Hostname     string `long:"host" help:"remote database host name"`
+	Port         string `long:"port" short:"p" help:"remote database connection port"`
+	DatabaseName string `long:"dbname" help:"remote database name"`
+}
+
+func (cmd *SyncCmd) Run(tt *db.TimeTracker) error {
+
+	repo, err := configlite.New(configlite.DefaultConfigurationFile())
+	if err != nil {
+		return fmt.Errorf("cannot open configuration repository: %w", err)
+	}
+
+	if cmd.Login == "" {
+		cmd.Login, err = repo.GetConfig(appName, "syncer_login")
+	}
+
+	if cmd.Password == "" && err == nil {
+		cmd.Password, err = repo.GetConfig(appName, "syncer_password")
+	}
+
+	if cmd.Hostname == "" && err == nil {
+		cmd.Hostname, err = repo.GetConfig(appName, "syncer_hostname")
+	}
+
+	if cmd.Port == "" && err == nil {
+		cmd.Port, err = repo.GetConfig(appName, "syncer_port")
+	}
+
+	var portInt int
+	if err == nil {
+		portInt, err = strconv.Atoi(cmd.Port)
+	}
+
+	if cmd.DatabaseName == "" && err == nil {
+		cmd.DatabaseName, err = repo.GetConfig(appName, "syncer_databasename")
+	}
+
+	if err == nil {
+		err = tt.Sync(db.SyncerConfig{
+			Login:        cmd.Login,
+			Password:     cmd.Password,
+			Hostname:     cmd.Hostname,
+			Port:         portInt,
+			DatabaseName: cmd.DatabaseName,
+		})
+	}
+
+	return err
+}
+
 func main() {
 
 	homeDir, err := os.UserHomeDir()
@@ -253,6 +312,7 @@ func main() {
 		Record   RecordCmd   `cmd:"" help:"record a new closed interval with it tags"`
 		Start    StartCmd    `cmd:"" help:"start tracking a new time interval"`
 		Stop     StopCmd     `cmd:"" help:"stop tracking the current opened interval"`
+		Sync     SyncCmd     `cmd:"" help:"synchronise with remote central database"`
 		Tag      TagCmd      `cmd:"" help:"tag an interval with given values"`
 		Untag    UntagCmd    `cmd:"" help:"remove tags from an interval"`
 		Vacuum   VacuumCmd   `cmd:"" help:"hard delete old soft deleted data"`

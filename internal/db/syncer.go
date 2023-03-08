@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
+	"github.com/sirupsen/logrus"
 )
 
 type SyncerConfig struct {
@@ -498,6 +499,7 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 
 	// synchronize new tags
 	{
+		logrus.Info("synchronizing tags")
 		newLocalTags, err := getNewTags(tx)
 		if err != nil {
 			return fmt.Errorf("cannot get new local tags: %w", err)
@@ -515,10 +517,12 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 		if err := storeNewTags(syncTx, newLocalTags, now); err != nil {
 			return fmt.Errorf("cannot synchronize new local tags in remote database: %w", err)
 		}
+		logrus.Info("synchronizing tags done")
 	}
 
 	// syncrhonize new interval start
 	{
+		logrus.Info("synchronizing interval start")
 		newLocalIntervalStart, err := getNewIntervalStart(tx)
 		if err != nil {
 			return fmt.Errorf("cannot get new local interval start: %w", err)
@@ -538,10 +542,12 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 			return fmt.Errorf(
 				"cannot synchronize new local interval start in remote database: %w", err)
 		}
+		logrus.Info("synchronizing interval start done")
 	}
 
 	// synchronize new interval stop
 	{
+		logrus.Info("synchronizing interval stop")
 		newLocalIntervalStop, err := getNewIntervalStop(tx)
 		if err != nil {
 			return fmt.Errorf("cannot get new local interval stop: %w", err)
@@ -561,10 +567,12 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 			return fmt.Errorf(
 				"cannot synchronize new remote interval stop in local database: %w", err)
 		}
+		logrus.Info("synchronizing interval stop done")
 	}
 
 	// synchronize new interval tombstone
 	{
+		logrus.Info("synchronizing interval tombstone")
 		newLocalIntervalTombstone, err := getNewIntervalTombstone(tx)
 		if err != nil {
 			return fmt.Errorf("cannot get new local interval tombstone: %w", err)
@@ -582,10 +590,12 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 		if err := storeNewIntervalTombstone(syncTx, newLocalIntervalTombstone, now); err != nil {
 			return fmt.Errorf("cannot sync new remote interval tombstone: %w", err)
 		}
+		logrus.Info("synchronizing interval tombstone done")
 	}
 
 	// synchronize interval tags
 	{
+		logrus.Info("synchronizing interval tags")
 		newLocalIntervalTags, err := getNewIntervalTags(tx)
 		if err != nil {
 			return fmt.Errorf("cannot get new local interval tags: %w", err)
@@ -603,10 +613,12 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 		if err := storeNewIntervalTags(syncTx, newLocalIntervalTags, now); err != nil {
 			return fmt.Errorf("cannot syn new local interval tags: %w", err)
 		}
+		logrus.Info("synchronizing interval tags done")
 	}
 
 	// syncrhonize interval tags tombstone
 	{
+		logrus.Info("synchronizing interval tags tombstone")
 		newLocalIntervalTagsTombstone, err := getNewIntervalTagsTombstone(tx)
 		if err != nil {
 			return fmt.Errorf("cannot get new local interval tags tombstone: %w", err)
@@ -624,6 +636,7 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 		if err := storeNewIntervalTagsTombstone(syncTx, newLocalIntervalTagsTombstone, now); err != nil {
 			return fmt.Errorf("cannot sync local interval tags tombstone: %w", err)
 		}
+		logrus.Info("synchronizing interval tags tombstone done")
 	}
 
 	// Store the last sync timestamp

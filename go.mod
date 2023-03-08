@@ -24,6 +24,7 @@ require (
 	github.com/containerd/containerd v1.6.12 // indirect
 	github.com/cznic/ql v1.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dgsb/configlite v0.0.0-20230118080318-c30317f9579a // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
 	github.com/docker/docker v20.10.20+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect

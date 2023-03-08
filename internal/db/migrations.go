@@ -22,6 +22,9 @@ var sqliteAddSyncMeta string
 //go:embed migrations/sqlite/05_immutable_interval_object.sql
 var sqliteAddImmutableInterval string
 
+//go:embed migrations/sqlite/06_not_null_created_at.sql
+var sqliteNotNullCreatedAt string
+
 func runSqliteMigrations(db *sql.DB) error {
 	return darwin.Migrate(
 		darwin.NewGenericDriver(db, darwin.SqliteDialect{}),
@@ -50,6 +53,11 @@ func runSqliteMigrations(db *sql.DB) error {
 				Version:     5,
 				Description: "split intervals table in 3 immutable table",
 				Script:      sqliteAddImmutableInterval,
+			},
+			{
+				Version:     6,
+				Description: "ensure created_at field is not nutll",
+				Script:      sqliteNotNullCreatedAt,
 			},
 		},
 		nil)

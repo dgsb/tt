@@ -36,13 +36,13 @@ CREATE TABLE interval_tombstone (
 );
 CREATE TABLE IF NOT EXISTS "interval_tags" (
     uuid TEXT PRIMARY KEY,
-    interval_start_uuid TEXT,
-    tag TEXT,
-    created_at INTEGER,
+    interval_start_uuid TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
     FOREIGN KEY(interval_start_uuid) REFERENCES interval_start(uuid),
     FOREIGN KEY(tag) REFERENCES tags(name)
 );
-CREATE TABLE interval_tags_tombstone (
+CREATE TABLE IF NOT EXISTS "interval_tags_tombstone" (
     uuid TEXT PRIMARY KEY,
     interval_tag_uuid TEXT NOT NULL,
     created_at INTEGER NOT NULL,

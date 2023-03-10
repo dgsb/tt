@@ -500,20 +500,24 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 	// synchronize new tags
 	{
 		logrus.Info("synchronizing tags")
+		logrus.Info("synchronizing tags: getting new local tags")
 		newLocalTags, err := getNewTags(tx)
 		if err != nil {
 			return fmt.Errorf("cannot get new local tags: %w", err)
 		}
 
+		logrus.Info("synchronizing tags: getting new remote tags")
 		newRemoteTags, err := getNewTags(syncTx)
 		if err != nil {
 			return fmt.Errorf("cannot get new remote tags: %w", err)
 		}
 
+		logrus.Info("synchronizing tags: storing locally new remote tags")
 		if err := storeNewTags(tx, newRemoteTags, now); err != nil {
 			return fmt.Errorf("cannot synchronize new remote tags in local database: %w", err)
 		}
 
+		logrus.Info("synchronizing tags: storing remotely new local tags")
 		if err := storeNewTags(syncTx, newLocalTags, now); err != nil {
 			return fmt.Errorf("cannot synchronize new local tags in remote database: %w", err)
 		}
@@ -523,21 +527,25 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 	// syncrhonize new interval start
 	{
 		logrus.Info("synchronizing interval start")
+		logrus.Info("synchronizing interval start: getting new local interval start")
 		newLocalIntervalStart, err := getNewIntervalStart(tx)
 		if err != nil {
 			return fmt.Errorf("cannot get new local interval start: %w", err)
 		}
 
+		logrus.Info("synchronizing interval start: getting new remote interval start")
 		newRemoteIntervalStart, err := getNewIntervalStart(syncTx)
 		if err != nil {
 			return fmt.Errorf("cannot get new remote interval start: %w", err)
 		}
 
+		logrus.Info("synchronizing interval start: storing locally new remote interval start")
 		if err := storeNewIntervalStart(tx, newRemoteIntervalStart, now); err != nil {
 			return fmt.Errorf(
 				"cannot synchronize new remote interval start in local database: %w", err)
 		}
 
+		logrus.Info("synchronizing interval start: storing remotely new local interval start")
 		if err := storeNewIntervalStart(syncTx, newLocalIntervalStart, now); err != nil {
 			return fmt.Errorf(
 				"cannot synchronize new local interval start in remote database: %w", err)
@@ -548,21 +556,25 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 	// synchronize new interval stop
 	{
 		logrus.Info("synchronizing interval stop")
+		logrus.Info("synchronizing interval stop: getting new local interval stop")
 		newLocalIntervalStop, err := getNewIntervalStop(tx)
 		if err != nil {
 			return fmt.Errorf("cannot get new local interval stop: %w", err)
 		}
 
+		logrus.Info("synchronizing interval stop: getting new remote interval stop")
 		newRemoteIntervalStop, err := getNewIntervalStop(syncTx)
 		if err != nil {
 			return fmt.Errorf("cannot get new remote interval stop: %w", err)
 		}
 
+		logrus.Info("synchronizing interval stop: storing locally new remote interval stop")
 		if err := storeNewIntervalStop(tx, newRemoteIntervalStop, now); err != nil {
 			return fmt.Errorf(
 				"cannot synchronize new remote interval stop in local database: %w", err)
 		}
 
+		logrus.Info("synchronizing interval stop: storing remotely new local interval stop")
 		if err := storeNewIntervalStop(syncTx, newLocalIntervalStop, now); err != nil {
 			return fmt.Errorf(
 				"cannot synchronize new remote interval stop in local database: %w", err)
@@ -573,20 +585,24 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 	// synchronize new interval tombstone
 	{
 		logrus.Info("synchronizing interval tombstone")
+		logrus.Info("synchronizing interval tombstone: getting new local interval tombstone")
 		newLocalIntervalTombstone, err := getNewIntervalTombstone(tx)
 		if err != nil {
 			return fmt.Errorf("cannot get new local interval tombstone: %w", err)
 		}
 
+		logrus.Info("synchronizing interval tombstone: getting new remote interval tombstone")
 		newRemoteIntervalTombstone, err := getNewIntervalTombstone(syncTx)
 		if err != nil {
 			return fmt.Errorf("cannot get new remote interval tombstone: %w", err)
 		}
 
+		logrus.Info("synchronizing interval tombstone: storing locally new remote interval tombstone")
 		if err := storeNewIntervalTombstone(tx, newRemoteIntervalTombstone, now); err != nil {
 			return fmt.Errorf("cannot sync new remote interval tombstone: %w", err)
 		}
 
+		logrus.Info("synchronizing interval tombstone: storing remotely new local interval tombstone")
 		if err := storeNewIntervalTombstone(syncTx, newLocalIntervalTombstone, now); err != nil {
 			return fmt.Errorf("cannot sync new remote interval tombstone: %w", err)
 		}
@@ -596,20 +612,24 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 	// synchronize interval tags
 	{
 		logrus.Info("synchronizing interval tags")
+		logrus.Info("synchronizing interval tags: getting new local interval tags")
 		newLocalIntervalTags, err := getNewIntervalTags(tx)
 		if err != nil {
 			return fmt.Errorf("cannot get new local interval tags: %w", err)
 		}
 
+		logrus.Info("synchronizing interval tags: getting new remote interval tags")
 		newRemoteIntervalTags, err := getNewIntervalTags(syncTx)
 		if err != nil {
 			return fmt.Errorf("cannot get new remote interval tags: %w", err)
 		}
 
+		logrus.Info("synchronizing interval tags: storing locally new remote interval tags")
 		if err := storeNewIntervalTags(tx, newRemoteIntervalTags, now); err != nil {
 			return fmt.Errorf("cannot sync new remote interval tags: %w", err)
 		}
 
+		logrus.Info("synchronizing interval tags: storing remotely new local interval tags")
 		if err := storeNewIntervalTags(syncTx, newLocalIntervalTags, now); err != nil {
 			return fmt.Errorf("cannot syn new local interval tags: %w", err)
 		}
@@ -619,20 +639,24 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 	// syncrhonize interval tags tombstone
 	{
 		logrus.Info("synchronizing interval tags tombstone")
+		logrus.Info("synchronizing interval tags tombstone: getting new local interval tags tombstone")
 		newLocalIntervalTagsTombstone, err := getNewIntervalTagsTombstone(tx)
 		if err != nil {
 			return fmt.Errorf("cannot get new local interval tags tombstone: %w", err)
 		}
 
+		logrus.Info("synchronizing interval tags tombstone: getting new remote interval tags tombstone")
 		newRemoteIntervalTagsTombstone, err := getNewIntervalTagsTombstone(syncTx)
 		if err != nil {
 			return fmt.Errorf("cannot get new remote interval tags tombstone: %w", err)
 		}
 
+		logrus.Info("synchronizing interval tags tombstone: storing locally new remote interval tags tombstone")
 		if err := storeNewIntervalTagsTombstone(tx, newRemoteIntervalTagsTombstone, now); err != nil {
 			return fmt.Errorf("cannot sync remote interval tags tombstone: %w", err)
 		}
 
+		logrus.Info("synchronizing interval tags tombstone: storing remotely new local interval tags tombstone")
 		if err := storeNewIntervalTagsTombstone(syncTx, newLocalIntervalTagsTombstone, now); err != nil {
 			return fmt.Errorf("cannot sync local interval tags tombstone: %w", err)
 		}

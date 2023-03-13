@@ -82,7 +82,8 @@ type TaggedInterval struct {
 }
 
 type TimeTracker struct {
-	db *sql.DB
+	db  *sql.DB
+	now func() time.Time
 }
 
 func New(databaseName string) (*TimeTracker, error) {
@@ -91,7 +92,7 @@ func New(databaseName string) (*TimeTracker, error) {
 		return nil, fmt.Errorf("cannot setup time tracker database: %w", err)
 	}
 
-	return &TimeTracker{db: db}, nil
+	return &TimeTracker{db: db, now: time.Now}, nil
 }
 
 // Close releases resources associated with the TimeTracker object.
@@ -146,9 +147,10 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	for _, tag := range tags {
 		if _, err := tx.Exec(
 			`INSERT INTO tags (name, created_at)
-			VALUES (?, unixepoch('now'))
+			VALUES (?, ?)
 			ON CONFLICT DO NOTHING`,
 			tag,
+			tt.now().Unix(),
 		); err != nil {
 			return fmt.Errorf("cannot insert missing tag %s: %w", tag, err)
 		}
@@ -158,9 +160,9 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	var newUUID string
 	row = tx.QueryRow(`
 		INSERT INTO interval_start (uuid, start_timestamp, created_at)
-		VALUES(uuid(), ?, unixepoch('now'))
+		VALUES(uuid(), ?, ?)
 		RETURNING (uuid)
-	`, t.Unix())
+	`, t.Unix(), tt.now().Unix())
 	if err := row.Scan(&newUUID); err != nil {
 		return fmt.Errorf("cannot insert new interval: %w", err)
 	}
@@ -169,8 +171,8 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	for _, tag := range tags {
 		_, err := tx.Exec(`
 			INSERT INTO interval_tags (uuid, interval_start_uuid, tag, created_at)
-			VALUES (uuid(), ?1, ?2, unixepoch('now'))
-		`, newUUID, tag)
+			VALUES (uuid(), ?1, ?2, ?3)
+		`, newUUID, tag, tt.now().Unix())
 		if err != nil {
 			return fmt.Errorf("cannot link new interval with tag %s: %w", tag, err)
 		}
@@ -237,8 +239,8 @@ func (tt *TimeTracker) stop(t time.Time, d time.Duration) (ret error) {
 	// preconditions ok. Close the currently opened interval.
 	_, err = tx.Exec(`
 		INSERT INTO interval_stop (uuid, start_uuid, stop_timestamp, created_at)
-		VALUES (uuid(), ?, ?, unixepoch('now'))`,
-		intervalUUID, t.Unix())
+		VALUES (uuid(), ?, ?, ?)`,
+		intervalUUID, t.Unix(), tt.now().Unix())
 	if err != nil {
 		return fmt.Errorf("cannot insert interval tombstone: %w", err)
 	}
@@ -359,7 +361,7 @@ func (tt *TimeTracker) Delete(id string) (ret error) {
 
 	_, err = tx.Exec(`
 		INSERT OR IGNORE INTO interval_tombstone (uuid, start_uuid, created_at)
-		SELECT uuid(), (SELECT uuid FROM interval_start WHERE id = ?), unixepoch('now')`, id)
+		SELECT uuid(), (SELECT uuid FROM interval_start WHERE id = ?), ?`, id, tt.now().Unix())
 	if err != nil {
 		return fmt.Errorf("cannot delete interval %s: %w", id, err)
 	}
@@ -407,16 +409,16 @@ func (tt *TimeTracker) Tag(id string, tags []string) (ret error) {
 
 		if _, err := tx.Exec(`
 				INSERT INTO tags (name, created_at)
-				VALUES (?, unixepoch('now'))
+				VALUES (?, ?)
 				ON CONFLICT DO NOTHING`,
-			tag); err != nil {
+			tag, tt.now().Unix()); err != nil {
 			return fmt.Errorf("cannot insert new tags %s: %w", tag, err)
 		}
 
 		if _, err := tx.Exec(`
 			INSERT INTO interval_tags (uuid, interval_start_uuid, tag, created_at)
-			VALUES (uuid(), ?, ?, unixepoch('now'))
-			ON CONFLICT DO NOTHING`, intervalUUID, tag); err != nil {
+			VALUES (uuid(), ?, ?, ?)
+			ON CONFLICT DO NOTHING`, intervalUUID, tag, tt.now().Unix()); err != nil {
 			return fmt.Errorf("cannot tag interval %s with %s: %w", id, tag, err)
 		}
 	}
@@ -460,8 +462,8 @@ func (tt *TimeTracker) Untag(id string, tags []string) (ret error) {
 					AND interval_tags.tag = ?
 			)
 			INSERT INTO interval_tags_tombstone (uuid, interval_tag_uuid, created_at)
-			SELECT uuid(), uuid, unixepoch('now') FROM to_delete
-		`, id, tag); err != nil {
+			SELECT uuid(), uuid, ? FROM to_delete
+		`, id, tag, tt.now().Unix()); err != nil {
 			return fmt.Errorf("cannot untag interval %s from %s: %w", id, tag, err)
 		}
 	}
@@ -617,8 +619,8 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 	var newUUID string
 	row = tx.QueryRow(`
 		INSERT INTO interval_start (uuid, start_timestamp, created_at)
-		VALUES (uuid(), ?, unixepoch('now'))
-		RETURNING (uuid)`, t.Unix())
+		VALUES (uuid(), ?, ?)
+		RETURNING (uuid)`, t.Unix(), tt.now().Unix())
 	if err := row.Scan(&newUUID); err != nil {
 		return fmt.Errorf("cannot insert new interval: %w", err)
 	}
@@ -626,7 +628,7 @@ func (tt *TimeTracker) Continue(t time.Time, id string) (ret error) {
 	for _, t := range tags {
 		_, err := tx.Exec(`
 			INSERT INTO interval_tags (uuid, interval_start_uuid, tag, created_at)
-			VALUES (uuid(), ?, ?, unixepoch('now'))`, newUUID, t)
+			VALUES (uuid(), ?, ?, ?)`, newUUID, t, tt.now().Unix())
 		if err != nil {
 			return fmt.Errorf("cannot tag interval %s with value %s: %w", newUUID, t, err)
 		}

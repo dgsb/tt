@@ -2,10 +2,12 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"testing"
+	"testing/quick"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -946,4 +948,158 @@ func TestSync(t *testing.T) {
 		}
 		require.Equal(t, itv1, itv2, "itv1 %#v, itv2 %#v", itv1, itv2)
 	})
+}
+
+func jsonMarshal(t *testing.T, input any) []byte {
+	payload, err := json.Marshal(input)
+	require.NoError(t, err)
+	return payload
+}
+
+func TestSyncQuick(t *testing.T) {
+	syncCfg := startPostgres(t)
+	tt1 := setupTT(t)
+	tt2 := setupTT(t)
+
+	i := 0
+	now := time.Now()
+	initialNow := now
+	tt1Started := false
+	tt2Started := false
+	synced := true
+
+	getNow := func() time.Time {
+		return now
+	}
+	tt1.now = getNow
+	tt2.now = getNow
+
+	type iteration struct {
+		Operation string
+		DBIndex   uint
+		Timestamp time.Time
+	}
+
+	iterRecords := []iteration{}
+
+	equalFunc := func(t *testing.T, lhs []TaggedInterval, rhs []TaggedInterval) {
+		for idx := range lhs {
+			lhs[idx].ID = ""
+		}
+		for idx := range rhs {
+			rhs[idx].ID = ""
+		}
+		jsonLhs := string(jsonMarshal(t, lhs))
+		jsonRhs := string(jsonMarshal(t, rhs))
+		require.JSONEq(t, jsonLhs, jsonRhs, "%s %s %s",
+			jsonLhs, jsonRhs, string(jsonMarshal(t, iterRecords)))
+	}
+
+	testFunc := func(opIndex uint, dbIndex uint, timeOffset uint) bool {
+
+		defer func() {
+			err := NewSanity(tt1.db).Check()
+			require.NoError(t, err, jsonMarshal(t, iterRecords))
+			err = NewSanity(tt2.db).Check()
+			require.NoError(t, err, jsonMarshal(t, iterRecords))
+		}()
+
+		operations := []string{"start", "stop", "sync"}
+
+		dbIndex = dbIndex % 2
+		opIndex = opIndex % uint(len(operations))
+		timeOffset = timeOffset % 3600
+
+		now = now.Add(time.Duration(timeOffset) * time.Second)
+
+		iterRecords = append(iterRecords, iteration{
+			Operation: operations[opIndex],
+			DBIndex:   dbIndex,
+			Timestamp: now,
+		})
+
+		switch operations[opIndex] {
+		case "start":
+			if tt1Started {
+				tt1Started = false
+				err := tt1.StopAt(now)
+				require.NoError(t, err)
+			}
+			if tt2Started {
+				tt2Started = false
+				err := tt2.StopAt(now)
+				require.NoError(t, err)
+			}
+			if dbIndex == 0 {
+				tt1Started = true
+				err := tt1.Start(now, []string{})
+				require.NoError(t, err)
+			}
+			if dbIndex == 1 {
+				tt2Started = true
+				err := tt2.Start(now, []string{})
+				require.NoError(t, err)
+			}
+		case "stop":
+			if dbIndex == 0 {
+				if tt1Started {
+					tt1Started = false
+					err := tt1.StopAt(now)
+					require.NoError(t, err)
+				}
+			}
+			if dbIndex == 1 {
+				if tt2Started {
+					tt2Started = false
+					err := tt2.StopAt(now)
+					require.NoError(t, err)
+				}
+			}
+		case "tag":
+		case "untag":
+		case "delete":
+		case "sync":
+			if tt1Started {
+				tt1Started = false
+				err := tt1.StopAt(now)
+				require.NoError(t, err)
+			}
+			if tt2Started {
+				tt2Started = false
+				err := tt2.StopAt(now)
+				require.NoError(t, err)
+			}
+
+			err := tt1.Sync(syncCfg)
+			require.NoError(t, err)
+			now = now.Add(time.Second)
+			err = tt2.Sync(syncCfg)
+			require.NoError(t, err)
+			now = now.Add(time.Second)
+			err = tt1.Sync(syncCfg)
+			require.NoError(t, err)
+		}
+
+		if operations[opIndex] == "sync" {
+			synced = true
+		} else {
+			synced = false
+		}
+
+		if synced {
+			itv1, err := tt1.List(initialNow, now.Add(time.Second))
+			require.NoError(t, err)
+			itv2, err := tt2.List(initialNow, now.Add(time.Second))
+			require.NoError(t, err)
+			equalFunc(t, itv1, itv2)
+			return true
+		}
+
+		return true
+	}
+
+	err := quick.Check(testFunc, &quick.Config{MaxCount: 1000})
+	require.NoError(t, err)
+
+	t.Log("iteration run", i)
 }

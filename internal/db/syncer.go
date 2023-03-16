@@ -492,7 +492,7 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 		return fmt.Errorf("cannot setup last sync temp table on remote database: %w", err)
 	}
 
-	now := time.Now()
+	now := tt.now()
 
 	// get all new local and remote data which has been created, update or deleted
 	// after the last sync timestamp
@@ -664,6 +664,7 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 	}
 
 	// Store the last sync timestamp
+	fmt.Println("storing last timestamp", now)
 	if err := storeLastSyncTimestamp(tx, now); err != nil {
 		return fmt.Errorf("cannot store last sync timestamp: %w", err)
 	}

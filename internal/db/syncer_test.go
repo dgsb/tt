@@ -921,20 +921,17 @@ func TestSync(t *testing.T) {
 		tt2 := setupTT(t)
 		now := time.Now()
 
-		tt1.Start(now.Add(-4*time.Hour), []string{"tag1"})
-		tt1.StopAt(now.Add(-3 * time.Hour))
+		require.NoError(t, tt1.Start(now.Add(-4*time.Hour), []string{"tag1"}))
+		require.NoError(t, tt1.StopAt(now.Add(-3*time.Hour)))
 
-		tt2.Start(now.Add(-2*time.Hour), []string{"tag2"})
-		tt2.StopAt(now.Add(-time.Hour))
+		require.NoError(t, tt2.Start(now.Add(-2*time.Hour), []string{"tag2"}))
+		require.NoError(t, tt2.StopAt(now.Add(-time.Hour)))
 
-		err := tt1.Sync(syncCfg)
-		require.NoError(t, err)
-		err = tt2.Sync(syncCfg)
-		require.NoError(t, err)
+		require.NoError(t, tt1.Sync(syncCfg))
+		require.NoError(t, tt2.Sync(syncCfg))
 		// workaround for the timestamp primary key in the sync_history table
 		time.Sleep(time.Second)
-		err = tt1.Sync(syncCfg)
-		require.NoError(t, err)
+		require.NoError(t, tt1.Sync(syncCfg))
 
 		itv1, err := tt1.List(now.Add(-10*time.Hour), now.Add(10*time.Hour))
 		require.NoError(t, err)
@@ -951,6 +948,7 @@ func TestSync(t *testing.T) {
 }
 
 func jsonMarshal(t *testing.T, input any) []byte {
+	t.Helper()
 	payload, err := json.Marshal(input)
 	require.NoError(t, err)
 	return payload
@@ -1006,9 +1004,9 @@ func TestSyncQuick(t *testing.T) {
 
 		operations := []string{"start", "stop", "sync"}
 
-		dbIndex = dbIndex % 2
-		opIndex = opIndex % uint(len(operations))
-		timeOffset = timeOffset % 3600
+		dbIndex %= 2
+		opIndex %= uint(len(operations))
+		timeOffset %= 3600
 
 		now = now.Add(time.Duration(timeOffset) * time.Second)
 

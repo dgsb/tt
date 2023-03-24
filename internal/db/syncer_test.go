@@ -1006,7 +1006,7 @@ func TestSyncQuick(t *testing.T) {
 
 		dbIndex %= 2
 		opIndex %= uint(len(operations))
-		timeOffset %= 3600
+		timeOffset = (timeOffset % 3599) + 1
 
 		now = now.Add(time.Duration(timeOffset) * time.Second)
 

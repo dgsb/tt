@@ -1096,7 +1096,7 @@ func TestSyncQuick(t *testing.T) {
 		return true
 	}
 
-	err := quick.Check(testFunc, &quick.Config{MaxCount: 1000})
+	err := quick.Check(testFunc, &quick.Config{MaxCount: 2000})
 	require.NoError(t, err)
 
 	t.Log("iteration run", i)

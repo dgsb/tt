@@ -484,22 +484,24 @@ func synchroniseObject[T any](
 
 	logrus.Info(trace + ": storing locally new remote rows")
 	if err := storeFunc(localTx, newRemoteObjects, now); err != nil {
-		return fmt.Errorf("%s: cannot synchronise new remote objects in local database: %w", trace, err)
+		return fmt.Errorf(
+			"%s: cannot synchronise new remote objects in local database: %w", trace, err)
 	}
 
 	logrus.Info(trace + ": storing remotely new local rows")
 	if err := storeFunc(remoteTx, newLocalObjects, now); err != nil {
-		return fmt.Errorf("%s: cannot synchronise new local objects in remote database: %w", trace, err)
+		return fmt.Errorf(
+			"%s: cannot synchronise new local objects in remote database: %w", trace, err)
 	}
 	logrus.Info(trace + " done")
 	return nil
 }
 
-func synchroniseTags(localTx *sqlx.Tx, remoteTx *sqlx.Tx, now time.Time) error {
+func synchroniseTags(localTx, remoteTx *sqlx.Tx, now time.Time) error {
 	return synchroniseObject("synchronising tags", localTx, remoteTx, getNewTags, storeNewTags, now)
 }
 
-func synchroniseIntervalStart(localTx *sqlx.Tx, remoteTx *sqlx.Tx, now time.Time) error {
+func synchroniseIntervalStart(localTx, remoteTx *sqlx.Tx, now time.Time) error {
 	return synchroniseObject(
 		"synchronising interval start",
 		localTx,
@@ -510,7 +512,7 @@ func synchroniseIntervalStart(localTx *sqlx.Tx, remoteTx *sqlx.Tx, now time.Time
 	)
 }
 
-func synchroniseIntervalStop(localTx *sqlx.Tx, remoteTx *sqlx.Tx, now time.Time) error {
+func synchroniseIntervalStop(localTx, remoteTx *sqlx.Tx, now time.Time) error {
 	return synchroniseObject(
 		"synchronising interval stop",
 		localTx,
@@ -521,7 +523,7 @@ func synchroniseIntervalStop(localTx *sqlx.Tx, remoteTx *sqlx.Tx, now time.Time)
 	)
 }
 
-func synchroniseIntervalTombstone(localTx *sqlx.Tx, remoteTx *sqlx.Tx, now time.Time) error {
+func synchroniseIntervalTombstone(localTx, remoteTx *sqlx.Tx, now time.Time) error {
 	return synchroniseObject(
 		"synchronising interval tombstone",
 		localTx,
@@ -532,7 +534,7 @@ func synchroniseIntervalTombstone(localTx *sqlx.Tx, remoteTx *sqlx.Tx, now time.
 	)
 }
 
-func synchroniseIntervalTags(localTx *sqlx.Tx, remoteTx *sqlx.Tx, now time.Time) error {
+func synchroniseIntervalTags(localTx, remoteTx *sqlx.Tx, now time.Time) error {
 	return synchroniseObject(
 		"synchronising interval tags",
 		localTx,
@@ -543,7 +545,7 @@ func synchroniseIntervalTags(localTx *sqlx.Tx, remoteTx *sqlx.Tx, now time.Time)
 	)
 }
 
-func synchroniseIntervalTagsTombstone(localTx *sqlx.Tx, remoteTx *sqlx.Tx, now time.Time) error {
+func synchroniseIntervalTagsTombstone(localTx, remoteTx *sqlx.Tx, now time.Time) error {
 	return synchroniseObject(
 		"synchronising interval tags tombstone",
 		localTx,
@@ -605,5 +607,4 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 			return nil
 		},
 	)
-	return nil
 }

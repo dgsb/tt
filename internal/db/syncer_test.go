@@ -981,6 +981,7 @@ func TestSyncQuick(t *testing.T) {
 	iterRecords := []iteration{}
 
 	equalFunc := func(t *testing.T, lhs []TaggedInterval, rhs []TaggedInterval) {
+		t.Helper()
 		for idx := range lhs {
 			lhs[idx].ID = ""
 		}

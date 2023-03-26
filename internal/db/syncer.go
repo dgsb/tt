@@ -9,6 +9,8 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/sirupsen/logrus"
+
+	"github.com/dgsb/tt/internal/funk"
 )
 
 type SyncerConfig struct {
@@ -589,41 +591,19 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 
 	// get all new local and remote data which has been created, update or deleted
 	// after the last sync timestamp
-
-	// synchronise new tags
-	if err := synchroniseTags(tx, syncTx, now); err != nil {
-		return err
-	}
-
-	// synchronise new interval start
-	if err := synchroniseIntervalStart(tx, syncTx, now); err != nil {
-		return err
-	}
-
-	// synchronise new interval stop
-	if err := synchroniseIntervalStop(tx, syncTx, now); err != nil {
-		return err
-	}
-
-	// synchronise new interval tombstone
-	if err := synchroniseIntervalTombstone(tx, syncTx, now); err != nil {
-		return err
-	}
-
-	// synchronise interval tags
-	if err := synchroniseIntervalTags(tx, syncTx, now); err != nil {
-		return err
-	}
-
-	// synchronise interval tags tombstone
-	if err := synchroniseIntervalTagsTombstone(tx, syncTx, now); err != nil {
-		return err
-	}
-
-	// Store the last sync timestamp
-	if err := storeLastSyncTimestamp(tx, now); err != nil {
-		return fmt.Errorf("cannot store last sync timestamp: %w", err)
-	}
-
+	return funk.CallAbortOnError(
+		func() error { return synchroniseTags(tx, syncTx, now) },
+		func() error { return synchroniseIntervalStart(tx, syncTx, now) },
+		func() error { return synchroniseIntervalStop(tx, syncTx, now) },
+		func() error { return synchroniseIntervalTombstone(tx, syncTx, now) },
+		func() error { return synchroniseIntervalTags(tx, syncTx, now) },
+		func() error { return synchroniseIntervalTagsTombstone(tx, syncTx, now) },
+		func() error {
+			if err := storeLastSyncTimestamp(tx, now); err != nil {
+				return fmt.Errorf("cannot store last sync timestamp: %w", err)
+			}
+			return nil
+		},
+	)
 	return nil
 }

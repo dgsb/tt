@@ -298,9 +298,12 @@ func (tt *TimeTracker) List(since, until time.Time) (retTi []TaggedInterval, ret
 		FROM interval_start
 			LEFT JOIN interval_stop ON interval_start.uuid = interval_stop.start_uuid
 			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
-		WHERE start_timestamp >= ?
-			AND start_timestamp < ?
-			AND interval_tombstone.uuid IS NULL
+		WHERE
+			(
+				(start_timestamp >= ?1  AND start_timestamp < ?2)
+				OR (stop_timestamp >= ?1 AND stop_timestamp < ?2)
+				OR stop_timestamp IS NULL
+			) AND interval_tombstone.uuid IS NULL
 		ORDER BY start_timestamp`,
 		since.Unix(), until.Unix())
 	if err != nil {

@@ -11,7 +11,7 @@ func CallAbortOnError(f ...func() error) (err error) {
 }
 
 func Map[I any, O any](in []I, mapper func(index int, data I) O) (out []O) {
-	out = make([]O, len(in))
+	out = make([]O, len(in)) //nolint:makezero // this is a better implementation
 	for idx := range in {
 		out[idx] = mapper(idx, in[idx])
 	}

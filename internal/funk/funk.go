@@ -9,3 +9,11 @@ func CallAbortOnError(f ...func() error) (err error) {
 	}
 	return
 }
+
+func Map[I any, O any](in []I, mapper func(index int, data I) O) (out []O) {
+	out = make([]O, len(in))
+	for idx := range in {
+		out[idx] = mapper(idx, in[idx])
+	}
+	return out
+}

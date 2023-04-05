@@ -46,35 +46,35 @@ func setupSyncerDB(cfg SyncerConfig) (*sqlx.DB, error) {
 }
 
 type intervalStartRow struct {
-	UUID           string
-	StartTimestamp int64
-	CreatedAt      int64
+	UUID           string `db:"uuid"`
+	StartTimestamp int64  `db:"start_timestamp"`
+	CreatedAt      int64  `db:"created_at"`
 }
 
 type intervalStopRow struct {
-	UUID          string
-	StartUUID     string
-	StopTimestamp int64
-	CreatedAt     int64
+	UUID          string `db:"uuid"`
+	StartUUID     string `db:"start_uuid"`
+	StopTimestamp int64  `db:"stop_timestamp"`
+	CreatedAt     int64  `db:"created_at"`
 }
 
 type intervalTombstoneRow struct {
-	UUID      string
-	StartUUID string
-	CreatedAt int64
+	UUID      string `db:"uuid"`
+	StartUUID string `db:"start_uuid"`
+	CreatedAt int64  `db:"created_at"`
 }
 
 type intervalTagsRow struct {
-	UUID      string
-	StartUUID string
-	Tag       string
-	CreatedAt int64
+	UUID      string `db:"uuid"`
+	StartUUID string `db:"interval_start_uuid"`
+	Tag       string `db:"tag"`
+	CreatedAt int64  `db:"created_at"`
 }
 
 type intervalTagsTombstoneRow struct {
-	UUID            string
-	IntervalTagUUID string
-	CreatedAt       int64
+	UUID            string `db:"uuid"`
+	IntervalTagUUID string `db:"interval_tag_uuid"`
+	CreatedAt       int64  `db:"created_at"`
 }
 
 // setupLastSyncTimestamp setup a sync_history temporary table on the remote server
@@ -126,7 +126,11 @@ func getLastSyncTimestamp(tx *sqlx.Tx) (time.Time, error) {
 // getNewTags return all tags created since the last sync operation
 func getNewTags(tx *sqlx.Tx) (newTags []string, ret error) {
 
-	rows, err := tx.Query(`
+	type tag struct {
+		Name string
+	}
+
+	rows, err := getRows[tag](tx, `
 		WITH last_sync AS (
 			SELECT max(sync_timestamp) last_timestamp
 			FROM sync_history
@@ -137,27 +141,14 @@ func getNewTags(tx *sqlx.Tx) (newTags []string, ret error) {
 			ON (last_timestamp IS NULL
 				OR created_at >= last_timestamp)
 		ORDER BY created_at, name`)
+
 	if err != nil {
 		return nil, fmt.Errorf("cannot query tags table: %w", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			newTags, ret = nil, multierror.Append(ret, err)
-		}
-	}()
 
-	for rows.Next() {
-		var tag string
-		if err := rows.Scan(&tag); err != nil {
-			return nil, fmt.Errorf("cannot scan tags row: %w", err)
-		}
-		newTags = append(newTags, tag)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("cannot browse tags table: %w", err)
-	}
-
-	return newTags, nil
+	return funk.Map(rows, func(_ int, data tag) string {
+		return data.Name
+	}), nil
 }
 
 func storeNewTags(tx *sqlx.Tx, tags []string, now time.Time) error {
@@ -179,9 +170,7 @@ func storeNewTags(tx *sqlx.Tx, tags []string, now time.Time) error {
 
 func getNewIntervalStart(tx *sqlx.Tx) (newIntervals []intervalStartRow, ret error) {
 
-	newIntervals = []intervalStartRow{}
-
-	rows, err := tx.Query(`
+	newIntervals, err := getRows[intervalStartRow](tx, `
 		WITH last_sync AS (
 			SELECT max(sync_timestamp) last_timestamp
 			FROM sync_history
@@ -191,28 +180,9 @@ func getNewIntervalStart(tx *sqlx.Tx) (newIntervals []intervalStartRow, ret erro
 			JOIN last_sync
 				ON (last_timestamp IS NULL OR created_at >= last_timestamp)
 		ORDER BY created_at`)
+
 	if err != nil {
 		return nil, fmt.Errorf("cannot query interval start table: %w", err)
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			newIntervals, ret = nil, multierror.Append(ret, err)
-		}
-	}()
-
-	for rows.Next() {
-		var ir intervalStartRow
-		if err := rows.Scan(
-			&ir.UUID,
-			&ir.StartTimestamp,
-			&ir.CreatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("cannot scan intervals table: %w", err)
-		}
-		newIntervals = append(newIntervals, ir)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("cannot browse intervals table: %w", err)
 	}
 
 	return newIntervals, nil
@@ -236,11 +206,9 @@ func storeNewIntervalStart(tx *sqlx.Tx, newIntervals []intervalStartRow, now tim
 	return nil
 }
 
-func getNewIntervalStop(tx *sqlx.Tx) (newIntervalStop []intervalStopRow, ret error) {
+func getNewIntervalStop(tx *sqlx.Tx) ([]intervalStopRow, error) {
 
-	newIntervalStop = []intervalStopRow{}
-
-	rows, err := tx.Query(`
+	newIntervalStop, err := getRows[intervalStopRow](tx, `
 		WITH last_sync AS (
 			SELECT max(sync_timestamp) last_timestamp
 			FROM sync_history
@@ -253,29 +221,8 @@ func getNewIntervalStop(tx *sqlx.Tx) (newIntervalStop []intervalStopRow, ret err
 	if err != nil {
 		return nil, fmt.Errorf("cannot query interval stop table: %w", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			newIntervalStop, ret = nil, multierror.Append(ret, err)
-		}
-	}()
 
-	for rows.Next() {
-		var r intervalStopRow
-		if err := rows.Scan(
-			&r.UUID,
-			&r.StartUUID,
-			&r.StopTimestamp,
-			&r.CreatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("cannot scan a row: %w", err)
-		}
-		newIntervalStop = append(newIntervalStop, r)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("cannot browse interval stop table: %w", err)
-	}
-
-	return
+	return newIntervalStop, nil
 }
 
 func storeNewIntervalStop(tx *sqlx.Tx, newIntervalStop []intervalStopRow, now time.Time) error {
@@ -297,9 +244,8 @@ func storeNewIntervalStop(tx *sqlx.Tx, newIntervalStop []intervalStopRow, now ti
 	return nil
 }
 
-func getNewIntervalTombstone(tx *sqlx.Tx) (itr []intervalTombstoneRow, ret error) {
-
-	rows, err := tx.Query(`
+func getNewIntervalTombstone(tx *sqlx.Tx) ([]intervalTombstoneRow, error) {
+	itr, err := getRows[intervalTombstoneRow](tx, `
 		WITH last_sync AS (
 			SELECT max(sync_timestamp) last_timestamp
 			FROM sync_history
@@ -311,26 +257,6 @@ func getNewIntervalTombstone(tx *sqlx.Tx) (itr []intervalTombstoneRow, ret error
 		ORDER BY created_at`)
 	if err != nil {
 		return nil, fmt.Errorf("cannot query interval_tombstone table: %w", err)
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			itr, ret = nil, multierror.Append(ret, err)
-		}
-	}()
-
-	for rows.Next() {
-		var r intervalTombstoneRow
-		if err := rows.Scan(
-			&r.UUID,
-			&r.StartUUID,
-			&r.CreatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("cannot scan intervalTombstone row: %w", err)
-		}
-		itr = append(itr, r)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("cannot browse interval_tombstone table: %w", err)
 	}
 	return itr, nil
 }
@@ -351,9 +277,9 @@ func storeNewIntervalTombstone(tx *sqlx.Tx, intervals []intervalTombstoneRow, no
 	return nil
 }
 
-func getNewIntervalTags(tx *sqlx.Tx) (newIntervalTags []intervalTagsRow, ret error) {
+func getNewIntervalTags(tx *sqlx.Tx) ([]intervalTagsRow, error) {
 
-	rows, err := tx.Query(`
+	newIntervalTags, err := getRows[intervalTagsRow](tx, `
 		WITH last_sync AS (
 			SELECT max(sync_timestamp) last_timestamp
 			FROM sync_history
@@ -365,22 +291,6 @@ func getNewIntervalTags(tx *sqlx.Tx) (newIntervalTags []intervalTagsRow, ret err
 		ORDER BY created_at`)
 	if err != nil {
 		return nil, fmt.Errorf("cannot query interval_tags table: %w", err)
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			newIntervalTags, ret = nil, multierror.Append(ret, err)
-		}
-	}()
-
-	for i := 0; rows.Next(); i++ {
-		var itr intervalTagsRow
-		if err := rows.Scan(&itr.UUID, &itr.StartUUID, &itr.Tag, &itr.CreatedAt); err != nil {
-			return nil, fmt.Errorf("cannot scan interval_tags table: %w", err)
-		}
-		newIntervalTags = append(newIntervalTags, itr)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("cannot browse interval_tags table: %w", err)
 	}
 
 	return newIntervalTags, nil
@@ -402,9 +312,9 @@ func storeNewIntervalTags(tx *sqlx.Tx, newIntervalTags []intervalTagsRow, now ti
 	return nil
 }
 
-func getNewIntervalTagsTombstone(tx *sqlx.Tx) (val []intervalTagsTombstoneRow, ret error) {
+func getNewIntervalTagsTombstone(tx *sqlx.Tx) ([]intervalTagsTombstoneRow, error) {
 
-	rows, err := tx.Query(`
+	itt, err := getRows[intervalTagsTombstoneRow](tx, `
 		WITH last_sync AS (
 			SELECT max(sync_timestamp) last_timestamp
 			FROM sync_history
@@ -417,28 +327,8 @@ func getNewIntervalTagsTombstone(tx *sqlx.Tx) (val []intervalTagsTombstoneRow, r
 	if err != nil {
 		return nil, fmt.Errorf("cannot query interval_tags_tombstone table: %w", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			val, ret = nil, multierror.Append(ret, err)
-		}
-	}()
 
-	for rows.Next() {
-		var r intervalTagsTombstoneRow
-		if err := rows.Scan(
-			&r.UUID,
-			&r.IntervalTagUUID,
-			&r.CreatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("cannot scan interval_tags_tombsone row: %w", err)
-		}
-		val = append(val, r)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("cannot browse interval_tags_tombstone table: %w", err)
-	}
-
-	return
+	return itt, nil
 }
 
 func storeNewIntervalTagsTombstone(

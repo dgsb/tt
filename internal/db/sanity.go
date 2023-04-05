@@ -33,30 +33,6 @@ func (s *Sanity) Check() error {
 	return err.ErrorOrNil()
 }
 
-func getRows[T any](db *sqlx.DB, query string) (t []T, ret error) {
-	rows, err := db.Queryx(query)
-	if err != nil {
-		return nil, fmt.Errorf("cannot query the database: %w", err)
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			t, ret = nil, multierror.Append(ret, err)
-		}
-	}()
-
-	for rows.Next() {
-		var singleT T
-		if err := rows.StructScan(&singleT); err != nil {
-			return nil, err
-		}
-		t = append(t, singleT)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("cannot browse rows: %w", err)
-	}
-	return
-}
-
 // intervalTagsUnicity checks the database contains a single row
 // for a interval_id, tag tuple with deleted_at being null.
 func (s *Sanity) intervalTagsUnicity() (ret error) {

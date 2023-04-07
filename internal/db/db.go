@@ -100,6 +100,24 @@ func (tt *TimeTracker) Close() error {
 	return tt.db.Close()
 }
 
+// countOpenedInterval counts the number of currently started
+// and not stopped time interval.
+// We should have at most one.
+func (tt *TimeTracker) countOpenedInterval(tx *sql.Tx) (int, error) {
+	var count int
+	row := tx.QueryRow(`
+		SELECT count(1)
+		FROM interval_start
+			LEFT JOIN interval_stop ON interval_start.uuid = interval_stop.start_uuid
+			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
+		WHERE interval_stop.uuid IS NULL
+			AND interval_tombstone.uuid IS NULL`)
+	if err := row.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 // Start registers a new opened interval with a set of tags. This method ensures
 // that no other opened is currently registered in the database and that
 // the wanted start time doesn't already belong to a closed interval.
@@ -111,23 +129,15 @@ func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
 	defer completeTransaction(tx, &ret)
 
 	// Check we don't have an already running opened interval
-	var count int
-	row := tx.QueryRow(`
-		SELECT count(1)
-		FROM interval_start
-			LEFT JOIN interval_stop ON interval_start.uuid = interval_stop.start_uuid
-			LEFT JOIN interval_tombstone ON interval_start.uuid = interval_tombstone.start_uuid
-		WHERE interval_stop.uuid IS NULL
-			AND interval_tombstone.uuid IS NULL`)
-	if err := row.Scan(&count); err != nil {
+	if count, err := tt.countOpenedInterval(tx); err != nil {
 		return fmt.Errorf("cannot count opened intervals: %w", err)
-	}
-	if count >= 1 {
+	} else if count >= 1 {
 		return ErrExistingOpenInterval
 	}
 
 	// Check the requested start time doesn't fall in a known closed interval
-	row = tx.QueryRow(`
+	var count int
+	row := tx.QueryRow(`
 		SELECT count(1)
 		FROM interval_start
 			INNER JOIN interval_stop ON interval_start.uuid = interval_stop.start_uuid

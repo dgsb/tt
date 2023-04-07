@@ -464,6 +464,12 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 	}
 	defer completeTransaction(tx.Tx, &ret)
 
+	if count, countErr := tt.countOpenedInterval(tx.Tx); countErr != nil {
+		return fmt.Errorf("cannot count opened interval: %w", countErr)
+	} else if count >= 1 {
+		return fmt.Errorf("cannot sync: %w", ErrExistingOpenInterval)
+	}
+
 	lastSync, err := getLastSyncTimestamp(tx)
 	if err != nil {
 		return fmt.Errorf("cannot get last sync timestamp: %w", err)

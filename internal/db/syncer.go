@@ -458,7 +458,7 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 		}
 	}()
 
-	tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
+	tx, err := tt.db.Beginx()
 	if err != nil {
 		return fmt.Errorf("cannot start a transaction: %w", err)
 	}

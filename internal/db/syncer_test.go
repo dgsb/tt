@@ -10,7 +10,6 @@ import (
 	"testing/quick"
 	"time"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -79,7 +78,7 @@ func TestSync(t *testing.T) {
 				('test_tag2', unixepoch('now'))`)
 		require.NoError(t, err)
 
-		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
+		tx, err := tt.db.Beginx()
 		require.NoError(t, err)
 
 		t.Cleanup(func() { commit(t, tx) })
@@ -105,7 +104,7 @@ func TestSync(t *testing.T) {
 			VALUES (?), (?)`, now.Add(-2*time.Hour).Unix(), now.Unix())
 		require.NoError(t, err)
 
-		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
+		tx, err := tt.db.Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -138,7 +137,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
+		tx, err := tt.db.Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -191,7 +190,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
+		tx, err := tt.db.Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -266,7 +265,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
+		tx, err := tt.db.Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -362,7 +361,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
+		tx, err := tt.db.Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -422,7 +421,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
+		tx, err := tt.db.Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -503,7 +502,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
+		tx, err := tt.db.Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -578,7 +577,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
+		tx, err := tt.db.Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -680,7 +679,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
+		tx, err := tt.db.Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -769,7 +768,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
+		tx, err := tt.db.Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 
@@ -893,7 +892,7 @@ func TestSync(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		tx, err := sqlx.NewDb(tt.db, "sqlite3").Beginx()
+		tx, err := tt.db.Beginx()
 		require.NoError(t, err)
 		t.Cleanup(func() { commit(t, tx) })
 

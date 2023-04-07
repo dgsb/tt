@@ -1,7 +1,6 @@
 package db
 
 import (
-	"database/sql"
 	"fmt"
 	"time"
 
@@ -15,11 +14,11 @@ type Sanity struct {
 	db *sqlx.DB
 }
 
-func NewSanity(db *sql.DB) *Sanity {
+func NewSanity(db *sqlx.DB) *Sanity {
 	// We use default sqlite3 driver name instead of our custom one here
 	// because this is supposed to be only used in sqlx layer to
 	// identify query placeholder charaters depending on the database type.
-	return &Sanity{db: sqlx.NewDb(db, "sqlite3")}
+	return &Sanity{db: db}
 }
 
 // Check performs a full database scan to validate data.

@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jmoiron/sqlx"
 	"github.com/mattn/go-sqlite3"
 )
 
@@ -44,7 +45,7 @@ func completeTransaction(
 	}
 }
 
-func setupDB(databaseName string) (*sql.DB, error) {
+func setupDB(databaseName string) (*sqlx.DB, error) {
 	db, err := sql.Open(customSqliteDriverName, databaseName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open database %s: %w", databaseName, err)
@@ -66,7 +67,7 @@ func setupDB(databaseName string) (*sql.DB, error) {
 			"cannot defer foreign keys consistency check at end of transaction time: %w", err)
 	}
 
-	return db, nil
+	return sqlx.NewDb(db, "sqlite3"), nil
 }
 
 type Interval struct {
@@ -82,7 +83,7 @@ type TaggedInterval struct {
 }
 
 type TimeTracker struct {
-	db  *sql.DB
+	db  *sqlx.DB
 	now func() time.Time
 }
 

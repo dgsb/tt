@@ -12,17 +12,31 @@ import (
 
 var Default = All
 
+// Metabuild rebuild the mage binary
+func Metabuild() error {
+	return sh.Run("go", "run", "mage.go", "-compile", "mage")
+}
+
 // Build the tt binary
 func Build() error {
 	return sh.Run("go", "build", "./")
 }
 
 // Run the test suite
-func Test(coverage bool) error {
+func Test() error {
+	return test(false)
+}
+
+// Run the test suite with coverage instrumentation
+func Coverage() error {
+	return test(true)
+}
+
+func test(coverage bool) error {
 	if coverage {
 		return sh.Run("go", "test", "-coverprofile", "cover.out", "./...")
 	} else {
-		return sh.Run("go", "test", "./...")
+		return sh.RunV("go", "test", "-v", "./...")
 	}
 }
 
@@ -40,6 +54,6 @@ func Lint() error {
 }
 
 func All() {
-	mg.Deps(Build, func() { Test(false) })
+	mg.Deps(Build, Test)
 	mg.Deps(Lint)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
@@ -11,8 +12,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 func startPostgres(t *testing.T) SyncerConfig {
@@ -21,40 +20,74 @@ func startPostgres(t *testing.T) SyncerConfig {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	pg, err := testcontainers.GenericContainer(
-		ctx,
-		testcontainers.GenericContainerRequest{
-			ContainerRequest: testcontainers.ContainerRequest{
-				Image:        "postgres:15",
-				Env:          map[string]string{"POSTGRES_PASSWORD": "postgres"},
-				ExposedPorts: []string{"5432/tcp"},
-				WaitingFor:   wait.ForExposedPort(),
-			},
-			Started: true,
-		})
+	t.Log("starting	postgres container")
+	out, err := exec.CommandContext(
+		ctx, "docker", "run", "-P", "-e", "POSTGRES_PASSWORD=postgres", "-d", "postgres:15",
+	).Output()
 	require.NoError(t, err, "cannot start postgres container")
-	require.True(t, pg.IsRunning())
+	dockerID := strings.TrimSpace(string(out))
+	t.Log("postgres container started", dockerID)
 
 	t.Cleanup(func() {
-		cleanupErr := pg.Terminate(context.Background())
-		require.NoError(t, cleanupErr)
+		return
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		err := exec.CommandContext(ctx, "docker", "kill", string(strings.TrimSpace(dockerID))).Wait()
+		require.NoError(t, err, "cannot stop temporary postgres container")
 	})
 
-	// this method returns the endpoint with the form <ip>:<port>
-	endpoint, err := pg.Endpoint(ctx, "")
-	require.NoError(t, err)
-	splitted := strings.Split(endpoint, ":")
-	require.Len(t, splitted, 2, "cannot split endpoint: %s", endpoint)
-	port, err := strconv.Atoi(splitted[1])
-	require.NoError(t, err)
+	t.Log("retrieving postgres container informations")
+	dockerInfo, err := exec.CommandContext(ctx, "docker", "inspect", dockerID).Output()
+	require.NoError(t, err, "cannot retrieve postgres container informations")
+	t.Log("postgres container informations retrieved", string(dockerInfo))
 
-	return SyncerConfig{
-		Login:        "postgres",
-		Password:     "postgres",
-		Hostname:     splitted[0],
-		Port:         port,
-		DatabaseName: "postgres",
+	var infos []struct {
+		Id              string
+		NetworkSettings struct {
+			Ports map[string][]struct {
+				HostIP   string
+				HostPort string
+			}
+			Networks map[string]struct {
+				IPAddress string
+			}
+		}
 	}
+	err = json.Unmarshal(dockerInfo, &infos)
+	require.NoError(t, err, "cannot unmarshal container informations")
+
+	for _, v := range infos {
+		if v.Id != dockerID {
+			continue
+		}
+
+		for k, port := range v.NetworkSettings.Ports {
+			if k != "5432/tcp" {
+				continue
+			}
+
+			require.Len(t, port, 1)
+			time.Sleep(time.Second)
+
+			return SyncerConfig{
+				Login:    "postgres",
+				Password: "postgres",
+				Hostname: "127.0.0.1",
+				Port: func() int {
+					p, err := strconv.Atoi(port[0].HostPort)
+					require.NoError(t, err)
+					return p
+				}(),
+				DatabaseName: "postgres",
+			}
+
+		}
+
+	}
+	t.Fatal("cannot find postgres container network information", string(dockerInfo))
+
+	// Unreachable
+	return SyncerConfig{}
 }
 
 func commit(t *testing.T, tx transactioner) {

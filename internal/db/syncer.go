@@ -462,9 +462,9 @@ func (tt *TimeTracker) Sync(cfg SyncerConfig) (ret error) {
 	if err != nil {
 		return fmt.Errorf("cannot start a transaction: %w", err)
 	}
-	defer completeTransaction(tx.Tx, &ret)
+	defer completeTransaction(tx, &ret)
 
-	if count, countErr := tt.countOpenedInterval(tx.Tx); countErr != nil {
+	if count, countErr := tt.countOpenedInterval(tx); countErr != nil {
 		return fmt.Errorf("cannot count opened interval: %w", countErr)
 	} else if count >= 1 {
 		return fmt.Errorf("cannot sync: %w", ErrExistingOpenInterval)

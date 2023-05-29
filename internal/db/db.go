@@ -104,7 +104,7 @@ func (tt *TimeTracker) Close() error {
 // countOpenedInterval counts the number of currently started
 // and not stopped time interval.
 // We should have at most one.
-func (tt *TimeTracker) countOpenedInterval(tx *sql.Tx) (int, error) {
+func (tt *TimeTracker) countOpenedInterval(tx *sqlx.Tx) (int, error) {
 	var count int
 	row := tx.QueryRow(`
 		SELECT count(1)
@@ -123,7 +123,7 @@ func (tt *TimeTracker) countOpenedInterval(tx *sql.Tx) (int, error) {
 // that no other opened is currently registered in the database and that
 // the wanted start time doesn't already belong to a closed interval.
 func (tt *TimeTracker) Start(t time.Time, tags []string) (ret error) {
-	tx, err := tt.db.Begin()
+	tx, err := tt.db.Beginx()
 	if err != nil {
 		return fmt.Errorf("cannot start transaction: %w", err)
 	}

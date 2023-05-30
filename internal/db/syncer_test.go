@@ -29,7 +29,6 @@ func startPostgres(t *testing.T) SyncerConfig {
 	t.Log("postgres container started", dockerID)
 
 	t.Cleanup(func() {
-		return
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		err := exec.CommandContext(ctx, "docker", "kill", string(strings.TrimSpace(dockerID))).Wait()

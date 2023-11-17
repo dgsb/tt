@@ -34,9 +34,9 @@ func Coverage() error {
 
 func test(coverage bool) error {
 	if coverage {
-		return sh.Run("go", "test", "-coverprofile", "cover.out", "./...")
+		return sh.Run("go", "test", "-count", "1", "-coverprofile", "cover.out", "./...")
 	} else {
-		return sh.RunV("go", "test", "-v", "./...")
+		return sh.RunV("go", "test", "-count", "1", "-v", "./...")
 	}
 }
 

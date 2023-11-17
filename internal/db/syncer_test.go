@@ -31,13 +31,13 @@ func startPostgres(t *testing.T) SyncerConfig {
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		err := exec.CommandContext(ctx, "docker", "kill", string(strings.TrimSpace(dockerID))).Wait()
-		require.NoError(t, err, "cannot stop temporary postgres container")
+		out, err := exec.CommandContext(ctx, "docker", "kill", string(strings.TrimSpace(dockerID))).Output()
+		require.NoError(t, err, "cannot stop temporary postgres container: %s -- %s", dockerID, out)
 	})
 
-	t.Log("retrieving postgres container informations")
+	t.Log("retrieving postgres container informations", dockerID)
 	dockerInfo, err := exec.CommandContext(ctx, "docker", "inspect", dockerID).Output()
-	require.NoError(t, err, "cannot retrieve postgres container informations")
+	require.NoError(t, err, "cannot retrieve postgres container informations", dockerID)
 	t.Log("postgres container informations retrieved", string(dockerInfo))
 
 	var infos []struct {
@@ -66,7 +66,7 @@ func startPostgres(t *testing.T) SyncerConfig {
 			}
 
 			require.Len(t, port, 1)
-			time.Sleep(time.Second)
+			time.Sleep(time.Second * 2)
 
 			return SyncerConfig{
 				Login:    "postgres",
